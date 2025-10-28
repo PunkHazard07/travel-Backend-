@@ -1,6 +1,7 @@
 import Flight from "../Model/flight.js";
 import aviationStackService from "../Config/aviationStackService.js";
 
+
 export const getFlights = async (req, res) => {
   try {
     const {
@@ -11,25 +12,15 @@ export const getFlights = async (req, res) => {
       limit = 10,
     } = req.query;
 
-    const apiParams = {
-      limit: parseInt(limit),
-    };
-
-    if (flight_number) apiParams.flight_iata = flight_number;
-    if (airline) apiParams.airline_iata = airline;
-    if (dep_airport) apiParams.dep_iata = dep_airport;
-    if (arr_airport) apiParams.arr_iata = arr_airport;
-
-    //check cache first need more research on this and how it works
+    // Check cache first
     const cacheQuery = {};
-    if (flight_number) cacheQuery.flight_number = flight_number;
-    if (airline) cacheQuery.airline = airline;
+    if (flight_number) cacheQuery.flightNumber = flight_number;
+    if (airline) cacheQuery.airline = new RegExp(airline, 'i'); 
 
-    const cachedFlights = (await Flight.find(cacheQuery)).toSorted({
-      cachedAt: -1,
-    });
+    const cachedFlights = await Flight.find(cacheQuery)
+      .sort({ cachedAt: -1 })
+      .limit(parseInt(limit));
 
-    // if cache is fresh(less than 30minutes old), return cached data
     if (cachedFlights.length > 0) {
       return res.status(200).json({
         success: true,
@@ -39,60 +30,71 @@ export const getFlights = async (req, res) => {
       });
     }
 
-    //fetch the API
+    // Build API params
+    const apiParams = {
+      limit: parseInt(limit),
+    };
+
+    if (flight_number) apiParams.flight_iata = flight_number;
+    if (airline) apiParams.airline_iata = airline;
+    if (dep_airport) apiParams.dep_iata = dep_airport;
+    if (arr_airport) apiParams.arr_iata = arr_airport;
+
+    // Fetch from API
     const apiResponse = await aviationStackService.getFlights(apiParams);
 
     if (!apiResponse.data || apiResponse.data.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "No flight found",
-      });
-
-      //save to DB
-      const flightsToSave = apiResponse.data.map((flight) => ({
-        apiFlightId: flight.flight.iata + "_" + flight.flight_date,
-        flightNumber: flight.flight.iata,
-        airline: flight.airline.name,
-        departureAirport: flight.departure.airport,
-        arrivalAirport: flight.arrival.airport,
-        departureTime: flight.departure.scheduled,
-        arrivalTime: flight.arrival.scheduled,
-        status: flight.flight_status,
-      }));
-
-      const bulkOps = flightsToSave.map((flight) => ({
-        updateOne: {
-          filter: { apiFlightId: flight.apiFlightId },
-          update: { $set: flight },
-          upsert: true,
-        },
-      }));
-
-      await Flight.bulkWrite(bulkOps);
-
-      const savedFlights = await Flight.find({
-        apiFlightId: { $in: flightsToSave.map((f) => f.apiFlightId) },
-      });
-
-      res.status(200).json({
-        success: true,
-        source: "api",
-        count: savedFlights.length,
-        data: savedFlights,
+        message: "No flights found",
       });
     }
+
+    // Save to database
+    const flightsToSave = apiResponse.data.map((flight) => ({
+      apiFlightId: flight.flight.iata + "_" + flight.flight_date,
+      flightNumber: flight.flight.iata,
+      airline: flight.airline.name,
+      departureAirport: flight.departure.airport,
+      arrivalAirport: flight.arrival.airport,
+      departureTime: flight.departure.scheduled,
+      arrivalTime: flight.arrival.scheduled,
+      status: flight.flight_status,
+    }));
+
+    const bulkOps = flightsToSave.map((flight) => ({
+      updateOne: {
+        filter: { apiFlightId: flight.apiFlightId },
+        update: { $set: flight },
+        upsert: true,
+      },
+    }));
+
+    await Flight.bulkWrite(bulkOps);
+
+    const savedFlights = await Flight.find({
+      apiFlightId: { $in: flightsToSave.map((f) => f.apiFlightId) },
+    });
+
+    res.status(200).json({
+      success: true,
+      source: "api",
+      count: savedFlights.length,
+      data: savedFlights,
+    });
+
   } catch (error) {
-    console.error("controller Error:", error);
+    console.error("Controller Error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "failed to fetch flights",
+      message: error.message || "Failed to fetch flights",
     });
   }
 };
 
 export const getFlightById = async (req, res) => {
   try {
-    const { id } = req.apiParams;
+    const { id } = req.params;
 
     const flight = await Flight.findById(id);
 
@@ -117,7 +119,7 @@ export const getFlightById = async (req, res) => {
 
 export const searchFlightByNumber = async (req, res) => {
   try {
-    const { flightNumber } = req.param;
+    const { flightNumber } = req.params;
 
     // check cache
     const cachedFlight = await Flight.findOne({ flightNumber });
@@ -166,6 +168,154 @@ export const searchFlightByNumber = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message,
+    });
+  }
+};
+
+export const getFlightsByAirline = async (req, res) => {
+  try {
+    const { airlineIata } = req.params;
+    const { limit = 10 } = req.query;
+
+    // Check cache first
+    const cachedFlights = await Flight.find({ 
+      airline: new RegExp(airlineIata, 'i') 
+    })
+      .sort({ cachedAt: -1 })
+      .limit(parseInt(limit));
+
+    if (cachedFlights.length > 0) {
+      return res.status(200).json({
+        success: true,
+        source: "cache",
+        count: cachedFlights.length,
+        data: cachedFlights,
+      });
+    }
+
+    // Fetch from API
+    const apiResponse = await aviationStackService.getFlightsByAirline(airlineIata);
+
+    if (!apiResponse.data || apiResponse.data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No flights found for this airline",
+      });
+    }
+
+    // Save to database
+    const flightsToSave = apiResponse.data.slice(0, parseInt(limit)).map((flight) => ({
+      apiFlightId: flight.flight.iata + "_" + flight.flight_date,
+      flightNumber: flight.flight.iata,
+      airline: flight.airline.name,
+      departureAirport: flight.departure.airport,
+      arrivalAirport: flight.arrival.airport,
+      departureTime: flight.departure.scheduled,
+      arrivalTime: flight.arrival.scheduled,
+      status: flight.flight_status,
+    }));
+
+    const bulkOps = flightsToSave.map((flight) => ({
+      updateOne: {
+        filter: { apiFlightId: flight.apiFlightId },
+        update: { $set: flight },
+        upsert: true,
+      },
+    }));
+
+    await Flight.bulkWrite(bulkOps);
+
+    const savedFlights = await Flight.find({
+      apiFlightId: { $in: flightsToSave.map((f) => f.apiFlightId) },
+    });
+
+    res.status(200).json({
+      success: true,
+      source: "api",
+      count: savedFlights.length,
+      data: savedFlights,
+    });
+
+  } catch (error) {
+    console.error("Controller Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch flights by airline",
+    });
+  }
+};
+
+//get flight by route
+export const getFlightsByRoute = async (req, res) => {
+  try {
+    const { depIata, arrIata } = req.params;
+    const { limit = 10 } = req.query;
+
+    // Check cache first
+    const cachedFlights = await Flight.find({ 
+      departureAirport: new RegExp(depIata, 'i'),
+      arrivalAirport: new RegExp(arrIata, 'i')
+    })
+      .sort({ cachedAt: -1 })
+      .limit(parseInt(limit));
+
+    if (cachedFlights.length > 0) {
+      return res.status(200).json({
+        success: true,
+        source: "cache",
+        count: cachedFlights.length,
+        data: cachedFlights,
+      });
+    }
+
+    // Fetch from API
+    const apiResponse = await aviationStackService.getFlightsByRoute(depIata, arrIata);
+
+    if (!apiResponse.data || apiResponse.data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No flights found for this route",
+      });
+    }
+
+    // Save to database
+    const flightsToSave = apiResponse.data.slice(0, parseInt(limit)).map((flight) => ({
+      apiFlightId: flight.flight.iata + "_" + flight.flight_date,
+      flightNumber: flight.flight.iata,
+      airline: flight.airline.name,
+      departureAirport: flight.departure.airport,
+      arrivalAirport: flight.arrival.airport,
+      departureTime: flight.departure.scheduled,
+      arrivalTime: flight.arrival.scheduled,
+      status: flight.flight_status,
+    }));
+
+    const bulkOps = flightsToSave.map((flight) => ({
+      updateOne: {
+        filter: { apiFlightId: flight.apiFlightId },
+        update: { $set: flight },
+        upsert: true,
+      },
+    }));
+
+    await Flight.bulkWrite(bulkOps);
+
+    const savedFlights = await Flight.find({
+      apiFlightId: { $in: flightsToSave.map((f) => f.apiFlightId) },
+    });
+
+    res.status(200).json({
+      success: true,
+      source: "api",
+      count: savedFlights.length,
+      data: savedFlights,
+    });
+
+  } catch (error) {
+    console.error("Controller Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch flights by route",
     });
   }
 };

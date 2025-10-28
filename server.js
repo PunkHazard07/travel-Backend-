@@ -14,7 +14,7 @@ import flightRoutes from './Routes/flightRoutes.js'
  connectDB();
 
 const app = express();
-const PORT = process.env.PORT
+const PORT = process.env.PORT 
 
 //....Middleware....
 app.use(cors());
