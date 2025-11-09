@@ -179,7 +179,7 @@ export const getFlightsByAirline = async (req, res) => {
 
     // Check cache first
     const cachedFlights = await Flight.find({ 
-      airline: new RegExp(airlineIata, 'i') 
+      airlineIata: airlineIata.toUpperCase()
     })
       .sort({ cachedAt: -1 })
       .limit(parseInt(limit));
@@ -195,7 +195,8 @@ export const getFlightsByAirline = async (req, res) => {
 
     // Fetch from API
     const apiResponse = await aviationStackService.getFlightsByAirline(airlineIata);
-
+    // console.log('API Response:', JSON.stringify(apiResponse, null, 2))
+    
     if (!apiResponse.data || apiResponse.data.length === 0) {
       return res.status(404).json({
         success: false,
@@ -208,6 +209,7 @@ export const getFlightsByAirline = async (req, res) => {
       apiFlightId: flight.flight.iata + "_" + flight.flight_date,
       flightNumber: flight.flight.iata,
       airline: flight.airline.name,
+      airlineIata: flight.airlinr.iata,
       departureAirport: flight.departure.airport,
       arrivalAirport: flight.arrival.airport,
       departureTime: flight.departure.scheduled,

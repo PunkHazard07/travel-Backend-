@@ -13,7 +13,7 @@ const router = express.Router();
 router.get("/getflight", getFlights); //...working...
 
 //get all flight by MongDB ID
-router.get("id/:id", getFlightById);
+router.get("/id/:id", getFlightById);
 
 //search flight by flightnumber
 router.get("/search/:flightNumber", searchFlightByNumber);
