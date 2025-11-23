@@ -6,6 +6,7 @@ import connectDB from "./Config/db.js";
 
 //Import routes...
 import flightRoutes from './Routes/flightRoutes.js'
+import hotelRoutes from './Routes/hotelRoutes.js'
 
 //load dotenv 
  dotenv.config();
@@ -27,6 +28,7 @@ app.get('/', (req,res) => {
 
 //mount routes...
 app.use ('/api/flights', flightRoutes);
+app.use('/api', hotelRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

@@ -22,7 +22,7 @@ router.get("/search/:flightNumber", searchFlightByNumber);
 router.get("/airline/:airline", getFlightsByAirline);
 
 //get flight by route
-router.get("/route/:depIata/:arrIata", getFlightsByRoute);
+router.get("/route/:depIata/:arrIata", getFlightsByRoute); //....not tested yet 
 
 //export
 export default router;

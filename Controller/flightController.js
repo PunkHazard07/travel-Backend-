@@ -179,7 +179,7 @@ export const getFlightsByAirline = async (req, res) => {
 
     // Check cache first
     const cachedFlights = await Flight.find({ 
-      airlineIata: airlineIata.toUpperCase()
+      airlineIata: airlineIata
     })
       .sort({ cachedAt: -1 })
       .limit(parseInt(limit));
@@ -209,7 +209,7 @@ export const getFlightsByAirline = async (req, res) => {
       apiFlightId: flight.flight.iata + "_" + flight.flight_date,
       flightNumber: flight.flight.iata,
       airline: flight.airline.name,
-      airlineIata: flight.airlinr.iata,
+      airlineIata: flight.airline.iata,
       departureAirport: flight.departure.airport,
       arrivalAirport: flight.arrival.airport,
       departureTime: flight.departure.scheduled,
