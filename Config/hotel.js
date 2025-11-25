@@ -13,16 +13,10 @@ export const liteApiConfig = {
       }
 };
 
-export const fetchHotelsFromAPI = (countryCode, cityName) => {
+export const fetchHotelsFromAPI = (countryCode, cityName, limit = 20) => {
     return new Promise((resolve, reject) => {
 
-        console.log('=== API Request Debug Info ===');
-        console.log('API Key exists:', !!liteApiConfig.apiKey);
-        console.log('API Key (first 10 chars):', liteApiConfig.apiKey?.substring(0, 10));
-        console.log('Country Code:', countryCode);
-        console.log('City Name:', cityName);
-
-         const url = `${liteApiConfig.baseUrl}${liteApiConfig.endpoint.hotels}?countryCode=${countryCode}&cityName=${cityName}`;
+         const url = `${liteApiConfig.baseUrl}${liteApiConfig.endpoint.hotels}?countryCode=${countryCode}&cityName=${cityName}&${limit}`;
 
          const options = {
             headers: {
@@ -31,9 +25,6 @@ export const fetchHotelsFromAPI = (countryCode, cityName) => {
                 'Content-Type': 'application/json'
             }
          };
-
-         console.log('making request to:', url)
-
 
          https.get(url, options, (res) => {
             let data = '';

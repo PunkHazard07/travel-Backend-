@@ -4,7 +4,7 @@ import Hotel from '../Model/hotel.js';
 
 export const getHotels = async (req, res) => {
     try {
-        const { country, cityName } = req.query;
+        const { country, cityName, limit = 20 } = req.query;
         
         if (!country || !cityName) {
             return res.status(400).json({
@@ -29,7 +29,7 @@ export const getHotels = async (req, res) => {
             'location.country': countryCode,
             'location.city': cityName,
              cachedAt: { $gte: new Date(Date.now() - 6 * 60 * 60 * 1000) } // 6 hours
-        });
+        }).limit(parseInt(limit)); 
 
         if (cachedHotels.length > 0) {
             return res.status(200).json({
@@ -41,7 +41,7 @@ export const getHotels = async (req, res) => {
         }
 
         //fetch from API
-        const apiResponse = await fetchHotelsFromAPI(countryCode, cityName);
+        const apiResponse = await fetchHotelsFromAPI(countryCode, cityName, limit);
 
         if (!apiResponse || !apiResponse.data || !Array.isArray(apiResponse.data)) {
             return res.status(500).json({
@@ -53,7 +53,7 @@ export const getHotels = async (req, res) => {
 
         //save to the database
         const savedHotels = await Promise.all(
-            apiResponse.data.map(async (hotel) => {
+            apiResponse.data.slice(0, limit).map(async (hotel) => {
                 return await Hotel.findOneAndUpdate(
                     { apiHotelId: hotel.id},
                     {
@@ -64,7 +64,7 @@ export const getHotels = async (req, res) => {
                             country: countryCode,
                         },
                         rating: hotel.rating || 0,
-                        pricePerNight: hotel.price || 0,
+                        pricePerNight: hotel.price || hotel.pricePerNight,
                         image: hotel.image || hotel.images?.[0] || '',
                         description: hotel.description || '',
                         cachedAt: new Date(),
