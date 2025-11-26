@@ -66,7 +66,7 @@ export const getHotels = async (req, res) => {
                         rating: hotel.rating || 0,
                         pricePerNight: hotel.price || hotel.pricePerNight,
                         image: hotel.image || hotel.images?.[0] || '',
-                        description: hotel.description || '',
+                        description: hotel.description || hotel.hotelDescription,
                         cachedAt: new Date(),
                     },
                     {upsert: true, new: true}
