@@ -1,8 +1,8 @@
 import express from "express";
 import {
   getFlights,
-  getFlightById,
-  searchFlightByNumber,
+  // getFlightById,
+  // searchFlightByNumber,
   getFlightsByAirline,
   getFlightsByRoute,
 } from "../Controller/flightController.js";

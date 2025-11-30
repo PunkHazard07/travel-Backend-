@@ -2,7 +2,6 @@ import https from "https";
 import dotenv from 'dotenv';
 //load dotenv
 dotenv.config();
-console.log('LITE_KEY from env:',process.env.LITE_KEY)
 
 export const liteApiConfig = {
       baseUrl: 'https://api.liteapi.travel/v3.0',
