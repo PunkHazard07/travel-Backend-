@@ -92,85 +92,85 @@ export const getFlights = async (req, res) => {
   }
 };
 
-export const getFlightById = async (req, res) => {
-  try {
-    const { id } = req.params;
+// export const getFlightById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
 
-    const flight = await Flight.findById(id);
+//     const flight = await Flight.findById(id);
 
-    if (!flight) {
-      return res.status(404).json({
-        success: false,
-        message: "Flight not found",
-      });
-    }
+//     if (!flight) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Flight not found",
+//       });
+//     }
 
-    res.status(200).json({
-      success: false,
-      message: error.message,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      mesage: error.message,
-    });
-  }
-};
+//     res.status(200).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       mesage: error.message,
+//     });
+//   }
+// };
 
-export const searchFlightByNumber = async (req, res) => {
-  try {
-    const { flightNumber } = req.params;
+// export const searchFlightByNumber = async (req, res) => {
+//   try {
+//     const { flightNumber } = req.params;
 
-    // check cache
-    const cachedFlight = await Flight.findOne({ flightNumber });
+//     // check cache
+//     const cachedFlight = await Flight.findOne({ flightNumber });
 
-    if (cachedFlight) {
-      return res.status(200).json({
-        success: true,
-        source: "cache",
-        data: cachedFlight,
-      });
-    }
+//     if (cachedFlight) {
+//       return res.status(200).json({
+//         success: true,
+//         source: "cache",
+//         data: cachedFlight,
+//       });
+//     }
 
-    //fetch API
-    const apiResponse = await aviationStackService.getFlightByNumber(
-      flightNumber
-    );
+//     //fetch API
+//     const apiResponse = await aviationStackService.getFlightByNumber(
+//       flightNumber
+//     );
 
-    if (!apiResponse.data || apiResponse.data.length === 0) {
-      returnres.status(404).json({
-        success: false,
-        message: "Flight not found",
-      });
-    }
+//     if (!apiResponse.data || apiResponse.data.length === 0) {
+//       returnres.status(404).json({
+//         success: false,
+//         message: "Flight not found",
+//       });
+//     }
 
-    const flightData = apiResponse.data[0];
-    const newFlight = new Flight({
-      apiFlightId: flightData.flight.iata + "_" + flightData.flight_date,
-      flightNumber: flightData.flight.iata,
-      airline: flightData.airline.name,
-      departureAirport: flightData.departure.airport,
-      arrivalAirport: flightData.arrival.airport,
-      departureTime: flightData.departure.scheduled,
-      arrivalTime: flightData.arrival.scheduled,
-      status: flightData.flight_status,
-    });
+//     const flightData = apiResponse.data[0];
+//     const newFlight = new Flight({
+//       apiFlightId: flightData.flight.iata + "_" + flightData.flight_date,
+//       flightNumber: flightData.flight.iata,
+//       airline: flightData.airline.name,
+//       departureAirport: flightData.departure.airport,
+//       arrivalAirport: flightData.arrival.airport,
+//       departureTime: flightData.departure.scheduled,
+//       arrivalTime: flightData.arrival.scheduled,
+//       status: flightData.flight_status,
+//     });
 
-    await newFlight.save();
+//     await newFlight.save();
 
-    res.status(200).json({
-        success: true,
-        source: 'api',
-        data: newFlight
-    });
+//     res.status(200).json({
+//         success: true,
+//         source: 'api',
+//         data: newFlight
+//     });
 
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
 
 export const getFlightsByAirline = async (req, res) => {
   try {
