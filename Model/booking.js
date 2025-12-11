@@ -1,48 +1,96 @@
-//...booking model...
 import mongoose from "mongoose";
 
 const bookingSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true
+        required: true,
+        ref: "User"
     },
     bookingType: {
         type: String,
-        enum: ["flight", "hotel"],
-        required: true
+        required: true,
+        enum: ["flight", "hotel"]
     },
-    flightId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Flight"
+    flightData: {
+        type: Object,
+        default: null
     },
-    hotelId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Hotel"
-    }, 
-    checkInDate: {type: Date},
-    checkOutDate: {type: Date},
+    hotelData: {
+        type: Object,
+        default: null
+    },
+    checkInDate: {
+        type: Date,
+    },
+    checkOutDate: {
+        type: Date,
+    },
+    bookingReference: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    provider: {
+        type: String,
+        default: "mock-provider"
+    },
+    providerBookingId: {
+        type: String,
+        default: null
+    },
     status: {
         type: String,
-        enum: ["pending", "confirmed", "cancelled"],
-        default: "pending"
+        default: "pending",
+        enum: ["pending", "confirmed", "cancelled", "failed"]
     },
-    totalPrice: {type: Number},
+    paymentStatus: {
+        type: String,
+        default: "unpaid",
+        enum: ["unpaid", "paid", "refunded", "processing"]
+    },
+    paymentMethod: {
+    type: String,
+    enum: ['paystack', 'card', 'bank_transfer'],
+    default: null
+    },
+    paymentReference: {
+        type: String,
+        default: null
+    },
+    paymentMetadata: {
+        type: Object,
+        default: null
+    },
+    totalPrice: {
+        type: Number,
+        required: true  
+    },
     createdAt: {
         type: Date,
         default: Date.now
     },
-});
-
-bookingSchema.pre('save', function(next) {
-    if (this.bookingType === 'flight' && !this.flightId) {
-        return next(new Error('flightId is required for flight bookings'))
+    updatedAt: {
+        type: Date,
+        default: Date.now
     }
-    if (this.bookingType === 'hotel' && !this.hotelId) {
-        return next(new Error('hotelId is required for hotel bookings'))
+})
+
+bookingSchema.pre("validate", function (next) {
+    if (!this.bookingReference) {
+        this.bookingReference = 
+        "BK-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+    }
+
+    if(this.bookingType === "flight" && !this.flightData) {
+        return next(new Error("Flight bookings require flightData"));
+    }
+
+    if (this.bookingType === "hotel" && !this.hotelData) {
+        return next(new Error("Hotel bookings require hotelData"));
     }
     next();
-});
+})
 
 const Booking = mongoose.model("Booking", bookingSchema);
+
 export default Booking;
