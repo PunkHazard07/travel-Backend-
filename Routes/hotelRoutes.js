@@ -1,12 +1,11 @@
 import express from "express"
-import { getHotels, searchHotels } from '../Controller/hotelController.js';
+import { getHotels, advancedHotelSearch } from '../Controller/hotelController.js';
 
 const router = express.Router();
 
 //get hotels by country and city
 router.get('/hotels', getHotels);
 
-//get hotels with filters
-router.get('/hotels/search', searchHotels);
+router.get("/hotels/advanced-search", advancedHotelSearch);
 
 export default router;

@@ -1,5 +1,7 @@
 import axios from "axios";
-// import Booking from "../Model/booking.js";
+import dotenv from "dotenv";
+// Load environment variables from .env file
+dotenv.config();
 
 export const paystackService = {
   // Initialize payment
@@ -11,7 +13,7 @@ export const paystackService = {
           email,
           amount: Math.round(amount * 100), // Convert to kobo/cents
           reference: bookingReference,
-          callback_url: `${process.env.FRONTEND_URL}/payment/callback`,
+          callback_url: `${process.env.VITE_FRONTEND_URL}/payment/callback`,
           metadata: {
             bookingReference,
             ...metadata,

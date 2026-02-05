@@ -7,8 +7,8 @@ import Booking from "../Model/booking.js";
 //create flight booking
 export const createFlightBooking = async (req, res) => {
   try {
-    const userId = req.user.id || req.user?.id;
-    const { flightId, passengers, flightClass, totalPrice } = req.body;
+    const userId = req.user?.id;
+    const { flightoffer, passengers } = req.body;
 
     //validate rquired fields
     if (!flightId || !passengers || !totalPrice) {

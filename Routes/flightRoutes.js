@@ -1,28 +1,35 @@
 import express from "express";
 import {
-  getFlights,
-  // getFlightById,
-  // searchFlightByNumber,
-  getFlightsByAirline,
-  getFlightsByRoute,
+  searchFlights,
+  searchAirports,
+  getAirportByCode,
 } from "../Controller/flightController.js";
 
 const router = express.Router();
+//search flights route
+/**
+ * @route   GET /api/flights/search
+ * @desc    Search for flight offers
+ * @access  Public
+ */
 
-//get all flights
-router.get("/getflight", getFlights); //...working...
+router.post("/search", searchFlights);
+// search airports route
+/**
+ * @route   GET /api/flights/airports/search
+ * @desc    Search for airports by keyword
+ * @access  Public
+ */
 
-//get all flight by MongDB ID
-// router.get("/id/:id", getFlightById);
+router.get("/airports/search", searchAirports);
 
-//search flight by flightnumber
-// router.get("/search/:flightNumber", searchFlightByNumber);
+// get airport by IATA code route
+/**
+ * @route   GET /api/flights/airports/:iataCode
+ * @desc    Get airport details by IATA code
+ * @access  Public
+ */
 
-//get flight by airline
-router.get("/airline/:airline", getFlightsByAirline);
+router.get("/airports/:iataCode", getAirportByCode);
 
-//get flight by route
-router.get("/route/:depIata/:arrIata", getFlightsByRoute); //....not tested yet 
-
-//export
 export default router;

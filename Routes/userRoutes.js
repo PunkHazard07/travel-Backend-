@@ -3,7 +3,6 @@ import {
     register,
     login,
     getUserProfile,
-    changePassword,
     updateUserProfile,
     deleteUserAccount
 } from '../Controller/userController.js';
@@ -19,8 +18,6 @@ router.post('/login', login);
 router.get('/profile', authenticate, getUserProfile);
 // Update User Profile
 router.put('/profile', authenticate, updateUserProfile);
-// Change Password
-router.put('/changePassword', authenticate, changePassword);
 // Delete User Account
 router.delete('/delete', authenticate, deleteUserAccount);
 

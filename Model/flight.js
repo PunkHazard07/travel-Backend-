@@ -1,25 +1,64 @@
 import mongoose from "mongoose";
 
-const flightSchema = new mongoose.Schema({
-  apiFlightId: { 
+const flightOfferSchema = new mongoose.Schema({
+  offerId: {
     type: String,
     required: true,
-    unique: true,
+    index: true,
   },
-  flightNumber: String,
-  airline: String,
-  airlineIata: String,
-  departureAirport: String,
-  arrivalAirport: String,
-  departureTime: Date,
-  arrivalTime: Date,
-  status: String,
+  source: {
+    type: String,
+    default: "AMADEUS",
+  },
+  
+  // Basic flight info
+  validatingAirlineCodes: [String],
+  itineraries: [{
+    duration: String,
+    segments: [{
+      departure: {
+        iataCode: String,
+        at: Date,
+      },
+      arrival: {
+        iataCode: String,
+        at: Date,
+      },
+      carrierCode: String,
+      number: String,
+      duration: String,
+    }],
+  }],
+  
+  // Pricing
+  price: {
+    currency: String,
+    total: {
+      type: Number,
+      required: false,
+    },
+    base: Number,
+  },
+  
+  numberOfBookableSeats: Number,
+  
+  // Cache management
   cachedAt: {
     type: Date,
     default: Date.now,
-    expires: 60 * 30, // expires after 30 minutes (for cache)
   },
+}, {
+  timestamps: true,
 });
 
-const Flight = mongoose.model("Flight", flightSchema);
-export default Flight;
+// TTL index - auto-delete after 30 minutes
+flightOfferSchema.index({ cachedAt: 1 }, { expireAfterSeconds: 1800 });
+
+// Query optimization
+flightOfferSchema.index({ 
+  "itineraries.segments.departure.iataCode": 1,
+  "itineraries.segments.arrival.iataCode": 1,
+  cachedAt: -1 
+});
+
+export default mongoose.model("FlightOffer", flightOfferSchema);

@@ -12,8 +12,41 @@ const bookingSchema = new mongoose.Schema({
         enum: ["flight", "hotel"]
     },
     flightData: {
-        type: Object,
-        default: null
+        offerId: {
+            type: String,
+            required: true
+        },
+        source: {
+            type: String,
+            default: "amadeus"
+        },
+        validatingAirlineCodes: [String],
+        itineraries: [
+            {
+                duration: String,
+                segments: [
+                    {
+                        departure: {
+                            iataCode: String,
+                            at: Date
+                        },
+                        arrival: {
+                            iataCode: String,
+                            at: Date
+                        },
+                        carrierCode: String,
+                        number: String,
+                        duration: String
+                    }
+                ]
+            }
+        ],
+        price: {
+            currency: String,
+            total: Number,
+            base: Number
+        },
+        numberOfBookableSeats: Number
     },
     hotelData: {
         type: Object,
@@ -50,7 +83,7 @@ const bookingSchema = new mongoose.Schema({
     },
     paymentMethod: {
     type: String,
-    enum: ['paystack', 'card', 'bank_transfer'],
+    enum: ['paystack'],
     default: null
     },
     paymentReference: {

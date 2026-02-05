@@ -12,10 +12,10 @@ export const liteApiConfig = {
       }
 };
 
-export const fetchHotelsFromAPI = (countryCode, cityName, limit = 20) => {
+export const fetchHotelsFromAPI = (countryCode, cityName, limit = 60) => {
     return new Promise((resolve, reject) => {
 
-         const url = `${liteApiConfig.baseUrl}${liteApiConfig.endpoint.hotels}?countryCode=${countryCode}&cityName=${cityName}&${limit}`;
+         const url = `${liteApiConfig.baseUrl}${liteApiConfig.endpoint.hotels}?countryCode=${countryCode}&cityName=${cityName}&limit=${limit}`;
 
          const options = {
             headers: {

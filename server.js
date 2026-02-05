@@ -25,11 +25,11 @@ app.use(express.json());
 
 //....Routes....
 app.get('/', (req,res) => {
-   res.send('Server is running Successfully')
+    res.send('Server is running Successfully')
 });
 
 //mount routes...
-app.use ('/api/flights', flightRoutes);
+app.use ('/api', flightRoutes);
 app.use('/api', hotelRoutes);
 app.use('/api', userRoutes);
 app.use('/api/bookings', bookingRoutes);

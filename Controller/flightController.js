@@ -1,323 +1,201 @@
-import Flight from "../Model/flight.js";
-import aviationStackService from "../Config/aviationStackService.js";
+import AmadeusService from "../Config/amadeus.js";
+import { mapAmadeusFlightOffer } from "../utils/mapper.js";
 
+const amadeusService = new AmadeusService();
 
-export const getFlights = async (req, res) => {
+// Search for flight offers
+
+export const searchFlights = async (req, res) => {
   try {
-    const {
-      flight_number,
-      airline,
-      dep_airport,
-      arr_airport,
-      limit = 10,
-    } = req.query;
-
-    // Check cache first
-    const cacheQuery = {};
-    if (flight_number) cacheQuery.flightNumber = flight_number;
-    if (airline) cacheQuery.airline = new RegExp(airline, 'i'); 
-
-    const cachedFlights = await Flight.find(cacheQuery)
-      .sort({ cachedAt: -1 })
-      .limit(parseInt(limit));
-
-    if (cachedFlights.length > 0) {
-      return res.status(200).json({
-        success: true,
-        source: "cache",
-        count: cachedFlights.length,
-        data: cachedFlights,
+    // Check if service is configured
+    if (!amadeusService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          message:
+            "Amadeus API is not configured. Please check environment variables.",
+          code: "SERVICE_UNAVAILABLE",
+        },
       });
     }
 
-    // Build API params
-    const apiParams = {
-      limit: parseInt(limit),
+    // Extract and validate query parameters
+    const {
+      originLocationCode,
+      destinationLocationCode,
+      departureDate,
+      returnDate,
+      adults,
+      children,
+      infants,
+      travelClass,
+      max,
+      currencyCode,
+      nonStop,
+    } = req.body;
+
+    // Validate required parameters
+    if (!originLocationCode || !destinationLocationCode || !departureDate) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message:
+            "Missing required parameters: originLocationCode, destinationLocationCode, and departureDate",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
+    // Build search parameters
+    const searchParams = {
+      originLocationCode,
+      destinationLocationCode,
+      departureDate,
+      returnDate,
+      adults: adults ? parseInt(adults) : 1,
+      children: children ? parseInt(children) : 0,
+      infants: infants ? parseInt(infants) : 0,
+      travelClass,
+      max: max ? parseInt(max) : 100,
+      currencyCode,
+      nonStop: nonStop === "true",
     };
 
-    if (flight_number) apiParams.flight_iata = flight_number;
-    if (airline) apiParams.airline_iata = airline;
-    if (dep_airport) apiParams.dep_iata = dep_airport;
-    if (arr_airport) apiParams.arr_iata = arr_airport;
+    // Call service
+    const result = await amadeusService.searchFlightOffers(searchParams);
 
-    // Fetch from API
-    const apiResponse = await aviationStackService.getFlights(apiParams);
-
-    if (!apiResponse.data || apiResponse.data.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No flights found",
-      });
+    // Handle service errors
+    if (!result.success) {
+      return res.status(result.error.status || 500).json(result);
     }
 
-    // Save to database
-    const flightsToSave = apiResponse.data.map((flight) => ({
-      apiFlightId: flight.flight.iata + "_" + flight.flight_date,
-      flightNumber: flight.flight.iata,
-      airline: flight.airline.name,
-      departureAirport: flight.departure.airport,
-      arrivalAirport: flight.arrival.airport,
-      departureTime: flight.departure.scheduled,
-      arrivalTime: flight.arrival.scheduled,
-      status: flight.flight_status,
-    }));
+    // Map the flight offers
+    const mappedOffers = result.data.map(mapAmadeusFlightOffer);
 
-    const bulkOps = flightsToSave.map((flight) => ({
-      updateOne: {
-        filter: { apiFlightId: flight.apiFlightId },
-        update: { $set: flight },
-        upsert: true,
-      },
-    }));
-
-    await Flight.bulkWrite(bulkOps);
-
-    const savedFlights = await Flight.find({
-      apiFlightId: { $in: flightsToSave.map((f) => f.apiFlightId) },
-    });
-
-    res.status(200).json({
+    // Return successful response
+    return res.status(200).json({
       success: true,
-      source: "api",
-      count: savedFlights.length,
-      data: savedFlights,
+      data: mappedOffers,
+      meta: result.meta,
+      dictionaries: result.dictionaries,
     });
-
   } catch (error) {
-    console.error("Controller Error:", error);
-    res.status(500).json({
+    console.error("searchFlights error:", error);
+    return res.status(500).json({
       success: false,
-      message: error.message || "Failed to fetch flights",
+      error: {
+        message: "An unexpected error occurred while searching flights",
+        code: "INTERNAL_ERROR",
+      },
     });
   }
 };
 
-// export const getFlightById = async (req, res) => {
-//   try {
-//     const { id } = req.params;
+// Search for airports by keyword
 
-//     const flight = await Flight.findById(id);
-
-//     if (!flight) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Flight not found",
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       mesage: error.message,
-//     });
-//   }
-// };
-
-// export const searchFlightByNumber = async (req, res) => {
-//   try {
-//     const { flightNumber } = req.params;
-
-//     // check cache
-//     const cachedFlight = await Flight.findOne({ flightNumber });
-
-//     if (cachedFlight) {
-//       return res.status(200).json({
-//         success: true,
-//         source: "cache",
-//         data: cachedFlight,
-//       });
-//     }
-
-//     //fetch API
-//     const apiResponse = await aviationStackService.getFlightByNumber(
-//       flightNumber
-//     );
-
-//     if (!apiResponse.data || apiResponse.data.length === 0) {
-//       returnres.status(404).json({
-//         success: false,
-//         message: "Flight not found",
-//       });
-//     }
-
-//     const flightData = apiResponse.data[0];
-//     const newFlight = new Flight({
-//       apiFlightId: flightData.flight.iata + "_" + flightData.flight_date,
-//       flightNumber: flightData.flight.iata,
-//       airline: flightData.airline.name,
-//       departureAirport: flightData.departure.airport,
-//       arrivalAirport: flightData.arrival.airport,
-//       departureTime: flightData.departure.scheduled,
-//       arrivalTime: flightData.arrival.scheduled,
-//       status: flightData.flight_status,
-//     });
-
-//     await newFlight.save();
-
-//     res.status(200).json({
-//         success: true,
-//         source: 'api',
-//         data: newFlight
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-export const getFlightsByAirline = async (req, res) => {
+export const searchAirports = async (req, res) => {
   try {
-    const { airlineIata } = req.params;
-    const { limit = 10 } = req.query;
-
-    // Check cache first
-    const cachedFlights = await Flight.find({ 
-      airlineIata: airlineIata
-    })
-      .sort({ cachedAt: -1 })
-      .limit(parseInt(limit));
-
-    if (cachedFlights.length > 0) {
-      return res.status(200).json({
-        success: true,
-        source: "cache",
-        count: cachedFlights.length,
-        data: cachedFlights,
-      });
-    }
-
-    // Fetch from API
-    const apiResponse = await aviationStackService.getFlightsByAirline(airlineIata);
-    // console.log('API Response:', JSON.stringify(apiResponse, null, 2))
-    
-    if (!apiResponse.data || apiResponse.data.length === 0) {
-      return res.status(404).json({
+    // Check if service is configured
+    if (!amadeusService.isConfigured()) {
+      return res.status(503).json({
         success: false,
-        message: "No flights found for this airline",
+        error: {
+          message:
+            "Amadeus API is not configured. Please check environment variables.",
+          code: "SERVICE_UNAVAILABLE",
+        },
       });
     }
 
-    // Save to database
-    const flightsToSave = apiResponse.data.slice(0, parseInt(limit)).map((flight) => ({
-      apiFlightId: flight.flight.iata + "_" + flight.flight_date,
-      flightNumber: flight.flight.iata,
-      airline: flight.airline.name,
-      airlineIata: flight.airline.iata,
-      departureAirport: flight.departure.airport,
-      arrivalAirport: flight.arrival.airport,
-      departureTime: flight.departure.scheduled,
-      arrivalTime: flight.arrival.scheduled,
-      status: flight.flight_status,
-    }));
+    const { keyword, subType, max } = req.query;
 
-    const bulkOps = flightsToSave.map((flight) => ({
-      updateOne: {
-        filter: { apiFlightId: flight.apiFlightId },
-        update: { $set: flight },
-        upsert: true,
-      },
-    }));
+    // Validate required parameters
+    if (!keyword) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "Missing required parameter: keyword",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
 
-    await Flight.bulkWrite(bulkOps);
+    // Build search parameters
+    const searchParams = {
+      keyword,
+      subType: subType || "AIRPORT",
+      max: max ? parseInt(max) : 10,
+    };
 
-    const savedFlights = await Flight.find({
-      apiFlightId: { $in: flightsToSave.map((f) => f.apiFlightId) },
-    });
+    // Call service
+    const result = await amadeusService.searchAirports(searchParams);
 
-    res.status(200).json({
-      success: true,
-      source: "api",
-      count: savedFlights.length,
-      data: savedFlights,
-    });
+    // Handle service errors
+    if (!result.success) {
+      return res.status(result.error.status || 500).json(result);
+    }
 
+    // Return successful response
+    return res.status(200).json(result);
   } catch (error) {
-    console.error("Controller Error:", error);
-    res.status(500).json({
+    console.error("searchAirports error:", error);
+    return res.status(500).json({
       success: false,
-      message: error.message || "Failed to fetch flights by airline",
+      error: {
+        message: "An unexpected error occurred while searching airports",
+        code: "INTERNAL_ERROR",
+      },
     });
   }
 };
 
-//get flight by route
-export const getFlightsByRoute = async (req, res) => {
+// Get airport details by IATA code
+
+export const getAirportByCode = async (req, res) => {
   try {
-    const { depIata, arrIata } = req.params;
-    const { limit = 10 } = req.query;
-
-    // Check cache first
-    const cachedFlights = await Flight.find({ 
-      departureAirport: new RegExp(depIata, 'i'),
-      arrivalAirport: new RegExp(arrIata, 'i')
-    })
-      .sort({ cachedAt: -1 })
-      .limit(parseInt(limit));
-
-    if (cachedFlights.length > 0) {
-      return res.status(200).json({
-        success: true,
-        source: "cache",
-        count: cachedFlights.length,
-        data: cachedFlights,
-      });
-    }
-
-    // Fetch from API
-    const apiResponse = await aviationStackService.getFlightsByRoute(depIata, arrIata);
-
-    if (!apiResponse.data || apiResponse.data.length === 0) {
-      return res.status(404).json({
+    // Check if service is configured
+    if (!amadeusService.isConfigured()) {
+      return res.status(503).json({
         success: false,
-        message: "No flights found for this route",
+        error: {
+          message:
+            "Amadeus API is not configured. Please check environment variables.",
+          code: "SERVICE_UNAVAILABLE",
+        },
       });
     }
 
-    // Save to database
-    const flightsToSave = apiResponse.data.slice(0, parseInt(limit)).map((flight) => ({
-      apiFlightId: flight.flight.iata + "_" + flight.flight_date,
-      flightNumber: flight.flight.iata,
-      airline: flight.airline.name,
-      departureAirport: flight.departure.airport,
-      arrivalAirport: flight.arrival.airport,
-      departureTime: flight.departure.scheduled,
-      arrivalTime: flight.arrival.scheduled,
-      status: flight.flight_status,
-    }));
+    const { iataCode } = req.params;
 
-    const bulkOps = flightsToSave.map((flight) => ({
-      updateOne: {
-        filter: { apiFlightId: flight.apiFlightId },
-        update: { $set: flight },
-        upsert: true,
-      },
-    }));
+    // Validate parameter
+    if (!iataCode) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "Missing required parameter: iataCode",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
 
-    await Flight.bulkWrite(bulkOps);
+    // Call service
+    const result = await amadeusService.getAirportByCode(iataCode);
 
-    const savedFlights = await Flight.find({
-      apiFlightId: { $in: flightsToSave.map((f) => f.apiFlightId) },
-    });
+    // Handle service errors
+    if (!result.success) {
+      return res.status(result.error.status || 500).json(result);
+    }
 
-    res.status(200).json({
-      success: true,
-      source: "api",
-      count: savedFlights.length,
-      data: savedFlights,
-    });
-
+    // Return successful response
+    return res.status(200).json(result);
   } catch (error) {
-    console.error("Controller Error:", error);
-    res.status(500).json({
+    console.error("getAirportByCode error:", error);
+    return res.status(500).json({
       success: false,
-      message: error.message || "Failed to fetch flights by route",
+      error: {
+        message: "An unexpected error occurred while fetching airport details",
+        code: "INTERNAL_ERROR",
+      },
     });
   }
 };
