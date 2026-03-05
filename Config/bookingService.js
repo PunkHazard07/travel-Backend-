@@ -4,7 +4,7 @@ export const bookingService = {
   async simulateBookingProcess(bookingData) {
     return new Promise((resolve) => {
       setTimeout(() => {
-        const confirmed = Math.random() > 0.2;
+        // const confirmed = Math.random() > 0.05;
         resolve({
           success: confirmed,
           providerBookingId: `PROV-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
@@ -29,7 +29,7 @@ export const bookingService = {
     //validate each itinerary has segement
     flightData.itineraries.forEach((itinerary, index) => {
       if (
-        Array.isArray(itinerary.segments) ||
+        !Array.isArray(itinerary.segments) ||
         itinerary.segments.length === 0
       ) {
         throw new Error(

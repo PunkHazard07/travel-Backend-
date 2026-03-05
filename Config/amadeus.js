@@ -1,33 +1,54 @@
-import Amadeus from "amadeus";
+import axios from "axios";
 import dotenv from "dotenv";
-// Load environment variables from .env file
+
 dotenv.config();
 
 class AmadeusService {
   constructor() {
-    this.client = new Amadeus({
-      clientId: process.env.AMADEUS_API_KEY,
-      clientSecret: process.env.AMADEUS_SECRET_KEY,
-      hostname:
-        process.env.AMADEUS_ENVIRONMENT === "test" ? "test" : "production",
-    });
+    this.baseURL = "https://test.api.amadeus.com";
+    this.clientId = process.env.AMADEUS_API_KEY;
+    this.clientSecret = process.env.AMADEUS_SECRET_KEY;
+    this.accessToken = null;
+    this.tokenExpiry = null;
   }
 
   /**
-   * Search for flight offers (one-way or round-trip)
-   * @param {Object} searchParams - Flight search parameters
-   * @param {string} searchParams.originLocationCode
-   * @param {string} searchParams.destinationLocationCode
-   * @param {string} searchParams.departureDate
-   * @param {string} [searchParams.returnDate]
-   * @param {number} [searchParams.adults=1]
-   * @param {number} [searchParams.children=0]
-   * @param {number} [searchParams.infants=0]
-   * @param {string} [searchParams.travelClass]
-   * @param {number} [searchParams.max=250]
-   * @param {string} [searchParams.currencyCode]
-   * @param {boolean} [searchParams.nonStop=false]
-   * @returns {Promise<Object>} Raw Amadeus API response with flight offers
+   * Get access token
+   */
+  async getAccessToken() {
+    if (this.accessToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
+      return this.accessToken;
+    }
+
+    try {
+      const response = await axios.post(
+        `${this.baseURL}/v1/security/oauth2/token`,
+        new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+        }),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+        }
+      );
+
+      this.accessToken = response.data.access_token;
+      // Set expiry to 5 minutes before actual expiry (usually 30 minutes)
+      this.tokenExpiry = Date.now() + (response.data.expires_in - 300) * 1000;
+
+      console.log("✅ Amadeus access token obtained");
+      return this.accessToken;
+    } catch (error) {
+      console.error("Failed to get access token:", error.response?.data || error.message);
+      throw new Error("Failed to authenticate with Amadeus API");
+    }
+  }
+
+  /**
+   * Search for flight offers
    */
   async searchFlightOffers(searchParams) {
     try {
@@ -45,14 +66,14 @@ class AmadeusService {
         nonStop = false,
       } = searchParams;
 
-      // Validate required parameters
       if (!originLocationCode || !destinationLocationCode || !departureDate) {
         throw new Error(
-          "Missing required parameters: originLocationCode, destinationLocationCode, and departureDate are required",
+          "Missing required parameters: originLocationCode, destinationLocationCode, and departureDate are required"
         );
       }
 
-      // Build request parameters
+      const token = await this.getAccessToken();
+
       const params = {
         originLocationCode,
         destinationLocationCode,
@@ -62,60 +83,103 @@ class AmadeusService {
         nonStop,
       };
 
-      // Add optional parameters if provided
       if (returnDate) params.returnDate = returnDate;
       if (children > 0) params.children = children;
       if (infants > 0) params.infants = infants;
       if (travelClass) params.travelClass = travelClass;
       if (currencyCode) params.currencyCode = currencyCode;
 
-      const response =
-        await this.client.shopping.flightOffersSearch.get(params);
+      const response = await axios.get(
+        `${this.baseURL}/v2/shopping/flight-offers`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          params,
+        }
+      );
 
       return {
         success: true,
-        data: response.data,
-        meta: response.meta || {},
-        dictionaries: response.dictionaries || {},
+        data: response.data.data,
+        meta: response.data.meta || {},
+        dictionaries: response.data.dictionaries || {},
       };
     } catch (error) {
       return this._handleError(error, "searchFlightOffers");
     }
   }
 
+   
+_cleanKeyword(keyword) {
+  if (!keyword) return "";
+  
+  // Extract IATA code from parentheses if present
+  const iataMatch = keyword.match(/\(([A-Z]{3})\)/);
+  if (iataMatch) {
+    console.log(`✂️ Extracted: ${iataMatch[1]} from: ${keyword}`);
+    return iataMatch[1];
+  }
+  
+  // Otherwise truncate to 10 chars
+  const cleaned = keyword.trim().substring(0, 10);
+  console.log(`Truncated: "${cleaned}" from: "${keyword}"`);
+  return cleaned;
+}
+   
+
   /**
    * Search for airports by keyword
-   * @param {Object} searchParams - Airport search parameters
-   * @param {string} searchParams.keyword - Search keyword (city name, airport name, or IATA code)
-   * @param {string} [searchParams.subType] - Location subtype: AIRPORT or CITY (default: AIRPORT)
-   * @param {number} [searchParams.max=10]
-   * @returns {Promise<Object>} Raw Amadeus API response with airport locations
    */
   async searchAirports(searchParams) {
     try {
       const { keyword, subType = "AIRPORT", max = 10 } = searchParams;
 
-      // Validate required parameters
-      if (!keyword) {
-        throw new Error("Missing required parameter: keyword is required");
-      }
+      console.log("searchAirports called with:", searchParams);
 
-      if (keyword.length < 1) {
+      if (!keyword || keyword.length < 1) {
         throw new Error("Keyword must be at least 1 character long");
       }
 
-      const params = {
-        keyword,
-        subType: Array.isArray(subType) ? subType : [subType],
-        "page[limit]": max,
-      };
+      const originalKeyword = keyword;
+      const cleanedKeyword = this._cleanKeyword(keyword);
 
-      const response = await this.client.referenceData.locations.get(params);
+      if (cleanedKeyword.length < 1) {
+        throw new Error ("cleaned Keyword is too short ");
+      }
+
+      const token = await this.getAccessToken();
+
+      let subTypeParam;
+      if (Array.isArray(subType)) {
+        subTypeParam = subType.join(",");
+      } else {       
+        subTypeParam = subType;
+      }
+
+    const url = `${this.baseURL}/v1/reference-data/locations?keyword=${encodeURIComponent(cleanedKeyword)}&subType=${subTypeParam}&page[limit]=${max}`;
+        
+
+    console.log(" Amadeus API call:", {
+        originalKeyword,
+        cleanedKeyword,
+        subType: subTypeParam,
+        max,
+        fullUrl: url
+      });
+      const response = await axios.get(
+        url,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       return {
         success: true,
-        data: response.data,
-        meta: response.meta || {},
+        data: response.data.data,
+        meta: response.data.meta || {},
       };
     } catch (error) {
       return this._handleError(error, "searchAirports");
@@ -124,8 +188,6 @@ class AmadeusService {
 
   /**
    * Get airport details by IATA code
-   * @param {string} iataCode
-   * @returns {Promise<Object>} Raw Amadeus API response with airport details
    */
   async getAirportByCode(iataCode) {
     try {
@@ -133,14 +195,24 @@ class AmadeusService {
         throw new Error("Missing required parameter: iataCode is required");
       }
 
-      const response = await this.client.referenceData.location.get({
-        keyword: iataCode,
-        subType: "AIRPORT",
-      });
+      const token = await this.getAccessToken();
+
+      const response = await axios.get(
+        `${this.baseURL}/v1/reference-data/locations`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          params: {
+            keyword: iataCode,
+            subType: "AIRPORT",
+          },
+        }
+      );
 
       return {
         success: true,
-        data: response.data,
+        data: response.data.data,
       };
     } catch (error) {
       return this._handleError(error, "getAirportByCode");
@@ -149,31 +221,29 @@ class AmadeusService {
 
   /**
    * Handle and format API errors
-   * @private
    */
   _handleError(error, methodName) {
-    console.error(`AmadeusService.${methodName} error:`, error);
+    console.error(`AmadeusService.${methodName} error:`, error.response?.data || error.message);
 
-    // Amadeus API error
     if (error.response) {
-      const { statusCode, body } = error.response;
-
+      const { status, data } = error.response;
+      
       return {
         success: false,
         error: {
           message:
-            body?.errors?.[0]?.detail ||
-            body?.errors?.[0]?.title ||
+            data?.errors?.[0]?.detail ||
+            data?.errors?.[0]?.title ||
+            error.message ||
             "Amadeus API error",
-          code: body?.errors?.[0]?.code || "AMADEUS_ERROR",
-          status: statusCode,
-          details: body?.errors || [],
+          code: data?.errors?.[0]?.code || "AMADEUS_ERROR",
+          status,
+          details: data?.errors || [],
           source: "amadeus_api",
         },
       };
     }
 
-    // Network or client error
     return {
       success: false,
       error: {
@@ -186,12 +256,12 @@ class AmadeusService {
   }
 
   /**
-   * Check if the Amadeus client is properly configured
-   * @returns {boolean}
+   * Check if the service is properly configured
    */
   isConfigured() {
-    return !!(process.env.AMADEUS_API_KEY && process.env.AMADEUS_SECRET_KEY);
+    return !!(this.clientId && this.clientSecret);
   }
+
 }
 
 export default AmadeusService;

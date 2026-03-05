@@ -32,6 +32,7 @@ export const searchFlights = async (req, res) => {
       max,
       currencyCode,
       nonStop,
+      airline
     } = req.body;
 
     // Validate required parameters
@@ -46,10 +47,32 @@ export const searchFlights = async (req, res) => {
       });
     }
 
+    const iataCodeRegex = /^[A-Z]{3}$/;
+
+    if (!iataCodeRegex.test(originLocationCode)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "Invalid IATA code format for originLocationCode",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
+    if (!iataCodeRegex.test(destinationLocationCode)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "Invalid IATA code format for destinationLocationCode",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
     // Build search parameters
     const searchParams = {
-      originLocationCode,
-      destinationLocationCode,
+      originLocationCode: originLocationCode.toUpperCase(),
+      destinationLocationCode: destinationLocationCode.toUpperCase(),
       departureDate,
       returnDate,
       adults: adults ? parseInt(adults) : 1,
@@ -58,7 +81,7 @@ export const searchFlights = async (req, res) => {
       travelClass,
       max: max ? parseInt(max) : 100,
       currencyCode,
-      nonStop: nonStop === "true",
+      nonStop: nonStop === "true" || nonStop === true,
     };
 
     // Call service
@@ -70,14 +93,31 @@ export const searchFlights = async (req, res) => {
     }
 
     // Map the flight offers
-    const mappedOffers = result.data.map(mapAmadeusFlightOffer);
+    const dictionaries = result.dictionaries || {};
 
+    // Map offers with carrier names resolved from dictionaries
+    let mappedOffers = result.data.map((offer) =>
+      mapAmadeusFlightOffer(offer, dictionaries)
+    );
+
+  if (airline) {
+      const airlineQuery = airline.trim().toLowerCase();
+      mappedOffers = mappedOffers.filter((offer) => {
+        const nameMatch = offer.carrierName?.toLowerCase().includes(airlineQuery);
+        const codeMatch = offer.carrierCode?.toLowerCase() === airlineQuery;
+        // Also check all validating airline codes
+        const validatingMatch = offer.validatingAirlineCodes?.some(
+          (code) => code.toLowerCase() === airlineQuery
+        );
+        return nameMatch || codeMatch || validatingMatch;
+      });
+    }
     // Return successful response
     return res.status(200).json({
       success: true,
       data: mappedOffers,
       meta: result.meta,
-      dictionaries: result.dictionaries,
+      dictionaries
     });
   } catch (error) {
     console.error("searchFlights error:", error);
@@ -120,10 +160,33 @@ export const searchAirports = async (req, res) => {
       });
     }
 
+    if (keyword.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "Keyword must be at least 2 characters long",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
+    //handle subType from query string 
+    let subTypeArray;
+    if (subType) {
+      if (typeof subType === 'string' && subType.includes(',')) {
+        subTypeArray = subType.split(',').map(s => s.trim());
+      } else {
+        subTypeArray = [subType];
+      }
+    } else{
+      subTypeArray = ["AIRPORT"];
+    }
+   
+
     // Build search parameters
     const searchParams = {
-      keyword,
-      subType: subType || "AIRPORT",
+      keyword: keyword.trim(),
+      subType: subTypeArray,
       max: max ? parseInt(max) : 10,
     };
 

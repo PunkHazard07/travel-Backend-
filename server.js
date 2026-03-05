@@ -1,17 +1,15 @@
 import express from "express";
 import cors from "cors";
 import dotenv from 'dotenv';
+//load dotenv 
+dotenv.config();
 import connectDB from "./Config/db.js";
-
 
 //Import routes...
 import flightRoutes from './Routes/flightRoutes.js'
 import hotelRoutes from './Routes/hotelRoutes.js'
 import userRoutes from './Routes/userRoutes.js'
 import bookingRoutes from './Routes/bookingRoutes.js'
-
-//load dotenv 
- dotenv.config();
 
  // connect to MongoDB
  connectDB();

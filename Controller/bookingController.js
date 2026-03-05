@@ -1,6 +1,5 @@
 import { bookingService } from "../Config/bookingService.js";
 import { paystackService } from "../Config/paystackService.js";
-import Flight from "../Model/flight.js";
 import Hotel from "../Model/hotel.js";
 import Booking from "../Model/booking.js";
 
@@ -8,10 +7,10 @@ import Booking from "../Model/booking.js";
 export const createFlightBooking = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { flightoffer, passengers } = req.body;
+    const { flightOffer, passengers, totalPrice } = req.body;
 
     //validate rquired fields
-    if (!flightId || !passengers || !totalPrice) {
+    if (!flightOffer || !passengers || !totalPrice) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
@@ -26,27 +25,26 @@ export const createFlightBooking = async (req, res) => {
       });
     }
 
-    //fetch flight deatils from database
-    const flight = await Flight.findById(flightId);
-
-    if (!flight) {
-      return res.status(404).json({
+    //validate flightOffer has Amadeus structure
+    if (!flightOffer.offerId) {
+      return res.status(400).json({
         success: false,
-        message: "Flight not found",
+        message: "Invalid flight offer data: missing offerId",
       });
     }
 
     const flightData = {
-      airline: flight.airline,
-      flightNumber: flight.flightNumber,
-      departureAirport: flight.departureAirport,
-      departureDate: new Date(flight.departureTime),
-      departureTime: flight.departureTime,
-      arrivalAirport: flight.arrivalAirport,
-      arrivalDate: new Date(flight.arrivalTime),
-      arrivalTime: flight.arrivalTime,
-      passengers: passengers,
-      class: flightClass || "Economy",
+      offerId: flightOffer.offerId,
+      source: flightOffer.source || "amadeus",
+      validatingAirlineCodes: flightOffer.validatingAirlineCodes || [],
+      itineraries: flightOffer.itineraries,
+      price: {
+        currency: flightOffer.price?.currency,
+        total: flightOffer.price?.total || totalPrice,
+        base: flightOffer.price?.base || totalPrice,
+      },
+      numberOfBookableSeats: flightOffer.numberOfBookableSeats,
+      passengers,
     };
 
     //create booking
@@ -254,8 +252,7 @@ export const verifyPayment = async (req, res) => {
 
     // Find booking by reference
     const booking = await Booking.findOne({
-      bookingReference: paymentData.metadata.bookingReference,
-      userId,
+      paymentReference: reference,
     });
 
     if (!booking) {
@@ -293,35 +290,6 @@ export const verifyPayment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || "Failed to verify payment",
-    });
-  }
-};
-
-// Confirm booking
-export const confirmBooking = async (req, res) => {
-  try {
-    const { bookingId } = req.body;
-    const userId = req.user?.id || req.userId;
-
-    if (!bookingId) {
-      return res.status(400).json({
-        success: false,
-        message: "Booking ID is required",
-      });
-    }
-
-    const booking = await bookingService.confirmBooking(bookingId);
-
-    res.status(200).json({
-      success: true,
-      message: "Booking confirmed successfully",
-      data: booking,
-    });
-  } catch (error) {
-    console.error("Confirm Booking Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to confirm booking",
     });
   }
 };

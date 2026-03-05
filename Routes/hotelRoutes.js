@@ -8,4 +8,4 @@ router.get('/hotels', getHotels);
 
 router.get("/hotels/advanced-search", advancedHotelSearch);
 
-export default router;
+export default router; 

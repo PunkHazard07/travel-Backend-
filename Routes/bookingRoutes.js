@@ -3,7 +3,6 @@ import {
     createFlightBooking,
     createHotelBooking,
     cancelBooking,
-    confirmBooking,
     initializePayment,
     verifyPayment
 } from '../Controller/bookingController.js';
@@ -16,10 +15,8 @@ router.post('/flight', authenticate, createFlightBooking);
 router.post('/hotel', authenticate, createHotelBooking);
 
 //paymentroutes
-router.post('/intialize', authenticate, initializePayment);
+router.post('/initialize', authenticate, initializePayment);
 router.get('/verify', authenticate, verifyPayment);
-//confirm bookings
-router.post('/confirm', authenticate, confirmBooking);
 
 //cancel bookings
 router.put('/:bookingId/cancel', authenticate, cancelBooking);
