@@ -4,7 +4,7 @@ export const bookingService = {
   async simulateBookingProcess(bookingData) {
     return new Promise((resolve) => {
       setTimeout(() => {
-        // const confirmed = Math.random() > 0.05;
+        const confirmed = Math.random() > 0.05;
         resolve({
           success: confirmed,
           providerBookingId: `PROV-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,

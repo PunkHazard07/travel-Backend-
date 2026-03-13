@@ -14,7 +14,6 @@ const bookingSchema = new mongoose.Schema({
     flightData: {
         offerId: {
             type: String,
-            required: true
         },
         source: {
             type: String,
