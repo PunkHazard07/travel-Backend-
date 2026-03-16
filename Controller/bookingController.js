@@ -308,7 +308,7 @@ export const getUserBookings = async (req, res) => {
       filters.status = status;
     }
 
-    const bookings = await bookingService.getUserBookings({ filters, userId });
+    const bookings = await bookingService.getUserBookings({ userId, filters });
 
     res.status(200).json({
       success: true,
