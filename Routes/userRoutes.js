@@ -3,7 +3,7 @@ import {
     register,
     login,
     getUserProfile,
-    updateUserProfile,
+    // updateUserProfile,
     deleteUserAccount
 } from '../Controller/userController.js';
 import { authenticate } from '../utils/authMiddleware.js';
@@ -16,8 +16,8 @@ router.post('/register', register);
 router.post('/login', login);
 // Get User Profile
 router.get('/profile', authenticate, getUserProfile);
-// Update User Profile
-router.put('/profile', authenticate, updateUserProfile);
+// // Update User Profile
+// router.put('/profile', authenticate, updateUserProfile);
 // Delete User Account
 router.delete('/delete', authenticate, deleteUserAccount);
 
