@@ -1,4 +1,5 @@
 import Booking from "../Model/booking.js";
+import mongoose from "mongoose";
 
 export const bookingService = {
   async simulateBookingProcess(bookingData) {
@@ -122,7 +123,7 @@ export const bookingService = {
 
   // Get user bookings
   async getUserBookings(userId, filters = {}) {
-    const query = { userId };
+    const query = { userId: new mongoose.Types.ObjectId(userId) };
 
     if (filters.bookingType) {
       query.bookingType = filters.bookingType;
@@ -138,7 +139,7 @@ export const bookingService = {
 
   // Cancel booking
   async cancelBooking(bookingId, userId) {
-    const booking = await Booking.findOne({ _id: bookingId, userId });
+    const booking = await Booking.findOne({ _id: bookingId, userId: new mongoose.Types.ObjectId(userId) });
 
     if (!booking) {
       throw new Error("Booking not found");
