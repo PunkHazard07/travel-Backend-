@@ -294,6 +294,36 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
+//get user bookings
+export const getUserBookings = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { bookingType, status } = req.query;
+
+    const filters = {};
+    if (bookingType) {
+      filters.bookingType = bookingType;
+    }
+    if (status) {
+      filters.status = status;
+    }
+
+    const bookings = await bookingService.getUserBookings({ filters, userId });
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+    });
+
+  } catch (error) {
+    console.error("Get User Bookings Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch user bookings",
+    });
+  }
+};
+
 
 //cancel booking
 export const cancelBooking = async (req, res) => {

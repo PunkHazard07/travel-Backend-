@@ -148,45 +148,45 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-//update user profile
-export const updateUserProfile = async (req, res) => {
-  try {
-    const userId = req.user.id;
+// //update user profile
+// export const updateUserProfile = async (req, res) => {
+//   try {
+//     const userId = req.user.id;
 
-    const { fullName, phone, dateOfBirth } = req.body;
+//     const { fullName, phone, dateOfBirth } = req.body;
 
-    //build update object
-    const updateData = {};
-    if (fullName) updateData.fullName = fullName;
-    if (phone) updateData.phone = phone;
-    if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
+//     //build update object
+//     const updateData = {};
+//     if (fullName) updateData.fullName = fullName;
+//     if (phone) updateData.phone = phone;
+//     if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    ).select("-password");
+//     const updatedUser = await User.findByIdAndUpdate(
+//       userId,
+//       { $set: updateData },
+//       { new: true, runValidators: true }
+//     ).select("-password");
 
-    if (!updatedUser) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
+//     if (!updatedUser) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
 
-    res.status(200).json({
-      success: true,
-      message: "User profile updated successfully",
-      data: updatedUser,
-    });
-  } catch (error) {
-    console.error("Update User Profile Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update user profile",
-    });
-  }
-};
+//     res.status(200).json({
+//       success: true,
+//       message: "User profile updated successfully",
+//       data: updatedUser,
+//     });
+//   } catch (error) {
+//     console.error("Update User Profile Error:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message || "Failed to update user profile",
+//     });
+//   }
+// };
 
 //delete user account
 export const deleteUserAccount = async (req, res) => {

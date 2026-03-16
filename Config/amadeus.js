@@ -117,7 +117,7 @@ _cleanKeyword(keyword) {
   // Extract IATA code from parentheses if present
   const iataMatch = keyword.match(/\(([A-Z]{3})\)/);
   if (iataMatch) {
-    console.log(`✂️ Extracted: ${iataMatch[1]} from: ${keyword}`);
+    console.log(`Extracted: ${iataMatch[1]} from: ${keyword}`);
     return iataMatch[1];
   }
   
