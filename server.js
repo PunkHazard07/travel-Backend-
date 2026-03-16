@@ -30,7 +30,7 @@ app.get('/', (req,res) => {
 app.use ('/api', flightRoutes);
 app.use('/api', hotelRoutes);
 app.use('/api', userRoutes);
-app.use('/api/bookings', bookingRoutes);
+app.use('/api', bookingRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
