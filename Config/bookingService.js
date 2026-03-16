@@ -123,7 +123,7 @@ export const bookingService = {
 
   // Get user bookings
   async getUserBookings(userId, filters = {}) {
-    const query = { userId: new mongoose.Types.ObjectId(userId) };
+    const query = { userId: new mongoose.Types.ObjectId(String(userId)) };
 
     if (filters.bookingType) {
       query.bookingType = filters.bookingType;
