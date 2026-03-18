@@ -62,7 +62,7 @@ export const getHotels = async (req, res) => {
         const price = estimatedPrice({
           stars: hotel.stars || Math.floor(Math.random() * 3) + 2,
           rating: hotel.rating || (Math.random() * 2 + 6),
-          currency: hotel.currency,
+          currency: hotel.currency || "NGN",
         });
 
         const hotelData = {
