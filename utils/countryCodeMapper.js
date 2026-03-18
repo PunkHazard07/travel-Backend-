@@ -33,7 +33,7 @@ export const getCountryCode = (input) => {
 
     const normalized = input.trim().toLowerCase();
 
-     if (/^[a-z]{2}$/i.test(input.trim())) {
+    if (/^[a-z]{2}$/i.test(input.trim())) {
         return input.trim().toUpperCase();
     }
 
