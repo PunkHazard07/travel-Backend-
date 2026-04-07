@@ -1,26 +1,24 @@
-import AmadeusService from "../Config/amadeus.js";
-import { mapAmadeusFlightOffer } from "../utils/mapper.js";
+import DuffelService from "../Config/duffel.js";
+import { mapDuffelFlightOffer} from "../utils/mapper.js";
 
-const amadeusService = new AmadeusService();
+const duffelService = new DuffelService();
 
-// Search for flight offers
+//helper send a consistent "not configured" response
+const notConfigured = (res) =>
+  res.status(503).json({
+    success: false,
+    error: {
+      message: "Duffel API is not configured. Please check DUFFEL_KEY in your environment.",
+      code: "SERVICE_UNAVAILABLE",
+    },
+  });
+  
 
 export const searchFlights = async (req, res) => {
   try {
-    // Check if service is configured
-    if (!amadeusService.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          message:
-            "Amadeus API is not configured. Please check environment variables.",
-          code: "SERVICE_UNAVAILABLE",
-        },
-      });
-    }
+        if (!duffelService.isConfigured()) return notConfigured(res);
 
-    // Extract and validate query parameters
-    const {
+      const {
       originLocationCode,
       destinationLocationCode,
       departureDate,
@@ -28,14 +26,15 @@ export const searchFlights = async (req, res) => {
       adults,
       children,
       infants,
+      childrenAges,
+      infantAges,
       travelClass,
       max,
-      currencyCode,
       nonStop,
-      airline
+      airline, // optional filter
     } = req.body;
 
-    // Validate required parameters
+    //validation
     if (!originLocationCode || !destinationLocationCode || !departureDate) {
       return res.status(400).json({
         success: false,
@@ -52,212 +51,277 @@ export const searchFlights = async (req, res) => {
     if (!iataCodeRegex.test(originLocationCode)) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: "Invalid IATA code format for originLocationCode",
-          code: "VALIDATION_ERROR",
-        },
+        error: { message: "Invalid IATA code format for originLocationCode", code: "VALIDATION_ERROR" },
       });
     }
 
-    if (!iataCodeRegex.test(destinationLocationCode)) {
+        if (!iataCodeRegex.test(destinationLocationCode)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: "Invalid IATA code format for destinationLocationCode", code: "VALIDATION_ERROR" },
+      });
+    }
+
+    const parseAgeList = (ageList) => {
+      if (Array.isArray(ageList)) return ageList.map((value) => Number.parseInt(value, 10)).filter(Number.isFinite);
+      if (typeof ageList === "string") {
+        return ageList
+          .split(",")
+          .map((value) => Number.parseInt(value.trim(), 10))
+          .filter(Number.isFinite);
+      }
+      return [];
+    };
+
+    const childCount = children ? parseInt(children, 10) : 0;
+    const infantCount = infants ? parseInt(infants, 10) : 0;
+    const childrenAgeList = parseAgeList(childrenAges);
+    const infantAgeList = parseAgeList(infantAges);
+
+    const isValidChildAge = (age) => Number.isInteger(age) && age >= 2 && age <= 11;
+    const isValidInfantAge = (age) => Number.isInteger(age) && age >= 0 && age <= 2;
+
+    if (childrenAgeList.length > 0 && childrenAgeList.length !== childCount) {
       return res.status(400).json({
         success: false,
         error: {
-          message: "Invalid IATA code format for destinationLocationCode",
+          message: "childrenAges must contain exactly as many entries as the children count",
           code: "VALIDATION_ERROR",
         },
       });
     }
 
-    // Build search parameters
+    if (childrenAgeList.some((age) => !isValidChildAge(age))) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "Each children age must be an integer between 2 and 11",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
+    if (infantAgeList.length > 0 && infantAgeList.length !== infantCount) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "infantAges must contain exactly as many entries as the infants count",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
+    if (infantAgeList.some((age) => !isValidInfantAge(age))) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "Each infant age must be an integer between 0 and 2",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
+    if (infantAgeList.length > 0 && infantAgeList.length !== infantCount) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: "infantAges must contain exactly as many entries as the infants count",
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
     const searchParams = {
       originLocationCode: originLocationCode.toUpperCase(),
       destinationLocationCode: destinationLocationCode.toUpperCase(),
       departureDate,
       returnDate,
-      adults: adults ? parseInt(adults) : 1,
-      children: children ? parseInt(children) : 0,
-      infants: infants ? parseInt(infants) : 0,
+      adults: adults ? parseInt(adults, 10) : 1,
+      children: childCount,
+      infants: infantCount,
+      childrenAges: childrenAgeList,
+      infantAges: infantAgeList,
       travelClass,
-      max: max ? parseInt(max) : 100,
-      currencyCode,
+      max: max ? parseInt(max, 10) : 50,
       nonStop: nonStop === "true" || nonStop === true,
     };
 
-    // Call service
-    const result = await amadeusService.searchFlightOffers(searchParams);
+    //call service 
+    const result = await duffelService.searchFlightOffers(searchParams);
 
-    // Handle service errors
-    if (!result.success) {
+      if (!result.success) {
       return res.status(result.error.status || 500).json(result);
     }
 
-    // Map the flight offers
-    const dictionaries = result.dictionaries || {};
+    //map offers
+    let mappedOffers = result.data.map(mapDuffelFlightOffer);
 
-    // Map offers with carrier names resolved from dictionaries
-    let mappedOffers = result.data.map((offer) =>
-      mapAmadeusFlightOffer(offer, dictionaries)
-    );
-
-  if (airline) {
-      const airlineQuery = airline.trim().toLowerCase();
+    //airline filter
+    if (airline) {
+      const q = airline.trim().toLowerCase();
       mappedOffers = mappedOffers.filter((offer) => {
-        const nameMatch = offer.carrierName?.toLowerCase().includes(airlineQuery);
-        const codeMatch = offer.carrierCode?.toLowerCase() === airlineQuery;
-        // Also check all validating airline codes
+        const nameMatch = offer.carrierName?.toLowerCase().includes(q);
+        const codeMatch = offer.carrierCode?.toLowerCase() === q;
         const validatingMatch = offer.validatingAirlineCodes?.some(
-          (code) => code.toLowerCase() === airlineQuery
+          (code) => code.toLowerCase() === q,
         );
         return nameMatch || codeMatch || validatingMatch;
       });
     }
-    // Return successful response
+
     return res.status(200).json({
       success: true,
       data: mappedOffers,
-      meta: result.meta,
-      dictionaries
+      offerRequestedId: result.offerRequestId,
+      meta: {count: mappedOffers.length},
     });
+
   } catch (error) {
     console.error("searchFlights error:", error);
     return res.status(500).json({
       success: false,
       error: {
-        message: "An unexpected error occurred while searching flights",
-        code: "INTERNAL_ERROR",
+        message: "An error occurred while searching for flights",
+        code: "INTERNAL_SERVER_ERROR",
       },
     });
   }
 };
 
-// Search for airports by keyword
-
 export const searchAirports = async (req, res) => {
   try {
-    // Check if service is configured
-    if (!amadeusService.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          message:
-            "Amadeus API is not configured. Please check environment variables.",
-          code: "SERVICE_UNAVAILABLE",
-        },
-      });
-    }
+    if (!duffelService.isConfigured()) return notConfigured(res);
 
-    const { keyword, subType, max } = req.query;
+    const { keyword, max } = req.query;
 
-    // Validate required parameters
-    if (!keyword) {
+    if (!keyword || keyword.length < 2) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: "Missing required parameter: keyword",
-          code: "VALIDATION_ERROR",
-        },
+        error: { message: "keyword must be at least 2 characters", code: "VALIDATION_ERROR" },
       });
     }
 
-    if (keyword.length < 2) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          message: "Keyword must be at least 2 characters long",
-          code: "VALIDATION_ERROR",
-        },
-      });
-    }
-
-    //handle subType from query string 
-    let subTypeArray;
-    if (subType) {
-      if (typeof subType === 'string' && subType.includes(',')) {
-        subTypeArray = subType.split(',').map(s => s.trim());
-      } else {
-        subTypeArray = [subType];
-      }
-    } else{
-      subTypeArray = ["AIRPORT"];
-    }
-   
-
-    // Build search parameters
-    const searchParams = {
+      const result = await duffelService.searchAirports({
       keyword: keyword.trim(),
-      subType: subTypeArray,
       max: max ? parseInt(max) : 10,
-    };
+    });
 
-    // Call service
-    const result = await amadeusService.searchAirports(searchParams);
-
-    // Handle service errors
-    if (!result.success) {
+      if (!result.success) {
       return res.status(result.error.status || 500).json(result);
     }
 
-    // Return successful response
     return res.status(200).json(result);
+
   } catch (error) {
     console.error("searchAirports error:", error);
     return res.status(500).json({
       success: false,
       error: {
-        message: "An unexpected error occurred while searching airports",
-        code: "INTERNAL_ERROR",
+        message: "An error occurred while searching for airports",
+        code: "INTERNAL_SERVER_ERROR",
       },
     });
   }
-};
-
-// Get airport details by IATA code
+}
 
 export const getAirportByCode = async (req, res) => {
   try {
-    // Check if service is configured
-    if (!amadeusService.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          message:
-            "Amadeus API is not configured. Please check environment variables.",
-          code: "SERVICE_UNAVAILABLE",
-        },
-      });
-    }
+    if (!duffelService.isConfigured()) return notConfigured(res);
 
     const { iataCode } = req.params;
 
-    // Validate parameter
-    if (!iataCode) {
+        if (!iataCode) {
       return res.status(400).json({
         success: false,
-        error: {
-          message: "Missing required parameter: iataCode",
-          code: "VALIDATION_ERROR",
-        },
+        error: { message: "Missing required parameter: iataCode", code: "VALIDATION_ERROR" },
       });
     }
 
-    // Call service
-    const result = await amadeusService.getAirportByCode(iataCode);
+    const result = await duffelService.getAirportByCode(iataCode);
 
-    // Handle service errors
     if (!result.success) {
       return res.status(result.error.status || 500).json(result);
     }
 
-    // Return successful response
     return res.status(200).json(result);
   } catch (error) {
     console.error("getAirportByCode error:", error);
     return res.status(500).json({
       success: false,
       error: {
-        message: "An unexpected error occurred while fetching airport details",
-        code: "INTERNAL_ERROR",
+        message: "An error occurred while fetching airport information",
+        code: "INTERNAL_SERVER_ERROR",
+      },
+    });
+  }
+};
+
+export const getAirlineByCode = async (req, res) => {
+  try {
+    if (!duffelService.isConfigured()) return notConfigured(res);
+
+    const { iataCode } = req.params;
+
+        if (!iataCode) {
+      return res.status(400).json({
+        success: false,
+        error: { message: "Missing required parameter: iataCode", code: "VALIDATION_ERROR" },
+      });
+    }
+
+    const result = await duffelService.getAirlineByCode(iataCode);
+
+    if (!result.success) {
+      return res.status(result.error.status || 500).json(result);
+    }
+
+    //surface logo URL
+    const airline = result.data?.[0] ?? null;
+    return res.status(200).json({
+      success: true,
+      data: airline,
+      logoLockupUrl: airline?.logo_lockup_url ?? null,
+      logoSymbolUrl: airline?.logo_symbol_url ?? null,
+    });
+  } catch (error) {
+    console.error("getAirlineByCode error:", error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        message: "An error occurred while fetching airline information",
+        code: "INTERNAL_SERVER_ERROR",
+      },
+    });
+  }
+};
+
+//get seat map for offer 
+export const getSeatMap = async (req, res) => {
+  try {
+    if (!duffelService.isConfigured()) return notConfigured(res);
+
+    const { offerId } = req.params;
+
+    if (!offerId) {
+      return res.status(400).json({
+        success: false,
+        error: { message: "Missing required parameter: offerId", code: "VALIDATION_ERROR" },
+      });
+    }
+
+    const result = await duffelService.getSeatMap(offerId);
+      if (!result.success) {
+      return res.status(result.error.status || 500).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("getSeatMap error:", error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        message: "An error occurred while fetching seat map information",
+        code: "INTERNAL_SERVER_ERROR",
       },
     });
   }

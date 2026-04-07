@@ -1,6 +1,8 @@
 import { fetchHotelsFromAPI } from "../Config/hotel.js";
 import { getCountryCode } from "../utils/countryCodeMapper.js";
 import estimatedPrice from "../utils/estimatedPrice.js";
+import { attachNgnPrices } from "../utils/currencyConverter.js";
+import { escapeRegExp } from "../utils/escapeRegExp.js";
 import Hotel from "../Model/hotel.js";
 
 export const getHotels = async (req, res) => {
@@ -28,18 +30,19 @@ export const getHotels = async (req, res) => {
     // cache
     const cachedHotels = await Hotel.find({
       "location.country": countryCode,
-      "location.city": { $regex: new RegExp(cityName, "i") },
+      "location.city": { $regex: new RegExp(escapeRegExp(cityName), "i") },
       cachedAt: { $gte: new Date(Date.now() - 6 * 60 * 60 * 1000) }, // 6 hours
     })
     .sort({ rating: -1, pricePerNight: 1 })
-    .limit(parseInt(limit));
+    .limit(parseInt(limit))
+    .lean(); //plain objects for spread in attachNgnPrice
 
     if (cachedHotels.length > 0) {
       return res.status(200).json({
         success: true,
         source: "cache",
         count: cachedHotels.length,
-        data: cachedHotels,
+        data: attachNgnPrices(cachedHotels),
       });
     }
 
@@ -57,13 +60,10 @@ export const getHotels = async (req, res) => {
     //save to the database - based on schema fields
     const savedHotels = await Promise.all(
       apiResponse.data.map(async (hotel) => {
-        
-        // use estimated price
-        const price = estimatedPrice({
-          stars: hotel.stars || Math.floor(Math.random() * 3) + 2,
-          rating: hotel.rating || (Math.random() * 2 + 6),
-          currency: hotel.currency || "NGN",
-        });
+        const stars = hotel.stars || Math.floor(Math.random() * 3) + 2;
+
+        //estimated price
+        const priceUSD = estimatedPrice({ stars });
 
         const hotelData = {
           apiHotelId: hotel.id,
@@ -72,10 +72,10 @@ export const getHotels = async (req, res) => {
             city: hotel.city || cityName,
             country: hotel.country || countryCode,
           },
-          rating: hotel.rating || (Math.random() * 2 + 6),
-          stars: hotel.stars || Math.floor(Math.random() * 3) + 2,
-          pricePerNight: price,
-          currency: hotel.currency || "NGN",
+          rating:  hotel.rating || parseFloat((Math.random() * 2 + 6).toFixed(1)),
+          stars,
+          pricePerNight: priceUSD,
+          currency: "USD",
           main_photo: hotel.main_photo || "",
           thumbnail: hotel.thumbnail || "",
           hotelDescription: hotel.hotelDescription || "",
@@ -102,7 +102,7 @@ export const getHotels = async (req, res) => {
       source: "api",
       count: limitedResults.length,
       totalAvailable: savedHotels.length,
-      data: limitedResults,
+      data: attachNgnPrices(limitedResults),
     });
   } catch (error) {
     res.status(500).json({
@@ -112,25 +112,25 @@ export const getHotels = async (req, res) => {
   }
 };
 
-
-
 export const advancedHotelSearch = async (req, res) => {
   try {
     const {
       city,
       country,
       minRating = 0,
-      maxPrice = 10000,
+      maxPrice,
       sortBy = "recommended",
       limit = 60,
       page = 1,
     } = req.query;
 
+    const USD_TO_NGN = parseFloat(process.env.USD_TO_NGN_RATE)
+
     // Build query for MongoDB
     const query = {};
 
     if (city) {
-      query["location.city"] = new RegExp(city, "i");
+      query["location.city"] = new RegExp(escapeRegExp(city), "i");
     }
 
     if (country) {
@@ -144,25 +144,17 @@ export const advancedHotelSearch = async (req, res) => {
       query.rating = { $gte: parseFloat(minRating) };
     }
 
-    if (maxPrice && parseFloat(maxPrice) < 10000) {
-      query.pricePerNight = { $lte: parseFloat(maxPrice) };
+      if (maxPrice && !isNaN(parseFloat(maxPrice))) {
+      const maxUSD = parseFloat(maxPrice) / USD_TO_NGN;
+      query.pricePerNight = { $lte: maxUSD };
     }
 
     // Sorting logic
-    let sortOptions = {};
-    switch (sortBy) {
-      case "price-low":
-        sortOptions = { pricePerNight: 1, rating: -1 };
-        break;
-      case "price-high":
-        sortOptions = { pricePerNight: -1, rating: -1 };
-        break;
-      case "rating":
-        sortOptions = { rating: -1, pricePerNight: 1 };
-        break;
-      default:
-        sortOptions = { rating: -1, pricePerNight: 1 };
-    }
+    const sortOptions = {
+      "price-low":  { pricePerNight: 1,  rating: -1 },
+      "price-high": { pricePerNight: -1, rating: -1 },
+      "rating":     { rating: -1, pricePerNight: 1  },
+    }[sortBy] || { rating: -1, pricePerNight: 1 };
 
     // Pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -170,7 +162,8 @@ export const advancedHotelSearch = async (req, res) => {
     const hotels = await Hotel.find(query)
       .sort(sortOptions)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     const totalCount = await Hotel.countDocuments(query);
 
@@ -181,7 +174,7 @@ export const advancedHotelSearch = async (req, res) => {
       page: parseInt(page),
       totalPages: Math.ceil(totalCount / parseInt(limit)),
       filters: {city, country, minRating, maxPrice, sortBy },
-      data: hotels,
+      data: attachNgnPrices(hotels),
     });
   } catch (error) {
     res.status(500).json({

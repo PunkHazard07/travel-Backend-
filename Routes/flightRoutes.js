@@ -3,6 +3,8 @@ import {
   searchFlights,
   searchAirports,
   getAirportByCode,
+  getAirlineByCode,
+  getSeatMap
 } from "../Controller/flightController.js";
 
 const router = express.Router();
@@ -31,5 +33,19 @@ router.get("/airports/search", searchAirports);
  */
 
 router.get("/airports/:iataCode", getAirportByCode);
+
+/**
+ * @route  GET /api/flights/airlines/:iataCode
+ * @desc   Get airline details + logo URLs by IATA code
+ * @access Public
+ */
+router.get("/airlines/:iataCode", getAirlineByCode);
+
+/**
+ * @route  GET /api/flights/seat-map/:offerId
+ * @desc   Fetch seat map for a selected offer (bonus feature)
+ * @access Public
+ */
+router.get("/seat-map/:offerId", getSeatMap);
 
 export default router;

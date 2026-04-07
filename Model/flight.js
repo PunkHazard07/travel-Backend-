@@ -8,7 +8,7 @@ const flightOfferSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    default: "AMADEUS",
+    default: "DUFFEL",
   },
   
   // Basic flight info
