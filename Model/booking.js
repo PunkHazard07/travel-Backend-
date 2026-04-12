@@ -17,7 +17,7 @@ const bookingSchema = new mongoose.Schema({
         },
         source: {
             type: String,
-            default: "amadeus"
+            default: "duffel"
         },
         validatingAirlineCodes: [String],
         itineraries: [

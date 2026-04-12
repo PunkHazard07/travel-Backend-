@@ -83,11 +83,15 @@ async searchFlightOffers(searchParams) {
       }
 
       //Cabin class name
-      const cabinMap = {
-        Economy: "economy",
-        PremiumEconomy: "premium_economy",
-        Business: "business",
-        First: "first",
+        const cabinMap = {
+        ECONOMY: "economy",
+        PREMIUM_ECONOMY: "premium_economy",
+        PREMIUMECONOMY: "premium_economy",
+        BUSINESS: "business",
+        FIRST: "first",
+        economy: "economy",
+        business: "business",
+        first: "first",
       };
 
       const offerRequestBody = {
