@@ -17,7 +17,7 @@ class DuffelService {
   //search for fligh offers (one way and round trip)
 async searchFlightOffers(searchParams) {
   try {
-          const {
+      const {
         originLocationCode,
         destinationLocationCode,
         departureDate,
@@ -32,37 +32,44 @@ async searchFlightOffers(searchParams) {
         nonStop = false,
       } = searchParams
 
-      const normalizeAges = (ages, count, minAge, maxAge, defaultAge) => {
-        const parsedAges = Array.isArray(ages)
-          ? ages.map((value) => Number.parseInt(value, 10))
-          : [];
+      // Validate required parameters
+      if (!originLocationCode || !destinationLocationCode || !departureDate) {
+        throw new Error("originLocationCode, destinationLocationCode, and departureDate are required");
+      }
 
-        const validAges = parsedAges.filter(
-          (age) => Number.isFinite(age) && age >= minAge && age <= maxAge,
-        );
+      // Validate date format (should be YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(departureDate)) {
+        throw new Error("departureDate must be in YYYY-MM-DD format");
+      }
+      if (returnDate && !dateRegex.test(returnDate)) {
+        throw new Error("returnDate must be in YYYY-MM-DD format");
+      }
 
-        const normalized = validAges.slice(0, count);
-        while (normalized.length < count) {
-          normalized.push(defaultAge);
-        }
-
-        return normalized;
-      };
-
-      const passengerChildrenAges = normalizeAges(childrenAges, children, 2, 11, 10);
-      const passengerInfantAges = normalizeAges(infantAges, infants, 0, 2, 1);
-
-      //Build passenger array
       const passengers = [];
+
+      //add adults
       for (let i = 0; i < adults; i++) {
-        passengers.push({ type: "adult" });
-      }
-      for (let i = 0; i < children; i++) {
-        passengers.push({ type: "child", age: passengerChildrenAges[i] });
-      }
-      for (let i = 0; i < infants; i++) {
-        passengers.push({ type: "infant", age: passengerInfantAges[i] });
-      }
+      passengers.push({ type: "adult" });
+    }
+    
+     // Add children with ages
+    for (let i = 0; i < children; i++) {
+      const age = (childrenAges && childrenAges[i]) ? parseInt(childrenAges[i]) : 10;
+      passengers.push({ 
+        type: "child", 
+        age: age  // Age must be a number, not a string
+      });
+    }
+
+        // Add infants with ages
+    for (let i = 0; i < infants; i++) {
+      const age = (infantAges && infantAges[i]) ? parseInt(infantAges[i]) : 1;
+      passengers.push({ 
+        type: "infant", 
+        age: age  // Age must be a number
+      });
+    }
 
       //build slices (Duffel's term for legs / directions)
       const slices = [
@@ -94,22 +101,23 @@ async searchFlightOffers(searchParams) {
         first: "first",
       };
 
-      const offerRequestBody = {
+      const offerRequest = await this.client.offerRequests.create({
         slices,
         passengers,
-        cabin_class: cabinMap[travelClass] || "economy",
-      };
-
-      //create offer request 
-      const offerRequest = await this.client.offerRequests.create(offerRequestBody);
-
-      //list offers for request
-      const offersResponse = await this.client.offers.list({
-        offer_request_id: offerRequest.data.id,
-        max_connections: nonStop ? 0 : undefined,
-        limit: Math.min(max, 200),
-        sort: "total_amount",
+        cabin_class: cabinMap[travelClass] || "economy"
       });
+
+      const listParams = {
+        offer_request_id: offerRequest.data.id,
+        sort: "total_amount",
+        limit: Math.min(max, 200)
+      }
+
+      if (nonStop === true) {
+      listParams.max_connections = 0;
+    }
+
+      const offersResponse = await this.client.offers.list(listParams);
 
       return {
         success: true,
