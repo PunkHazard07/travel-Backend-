@@ -148,7 +148,7 @@ async searchAirports(searchParams) {
       throw new Error("Keyword must be at least 1 character long");
     }
 
-    const response = await this.client.places.suggest({
+    const response = await this.client.suggestions.list({
       query: keyword.trim()
     });
 
@@ -200,7 +200,29 @@ async getSeatMap(offerId) {
     try {
       if (!offerId) throw new Error("offerId is required");
 
-      const response = await this.client.seatMaps.get(offerId);
+    const offer = await this.client.offers.get(offerId, {
+      return_available_services: true,
+    });
+
+     // Check if there are any seat services available
+    const hasSeatServices = offer.data.available_services?.some(
+      service => service.type === "seat"
+    );
+
+      if (!hasSeatServices) {
+      return {
+        success: false,
+        error: {
+          message: "No seat services available for this offer",
+          code: "seat_map_unavailable",
+          status: 422
+        }
+      };
+    }
+
+    const response = await this.client.seatMaps.get({
+      offer_id: offerId
+    });
 
       return { success: true, data: response.data };
     } catch (error) {

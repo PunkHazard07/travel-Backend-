@@ -302,7 +302,9 @@ export const getSeatMap = async (req, res) => {
 
     const { offerId } = req.params;
 
-    if (!offerId) {
+    console.log("[getSeatMap Controller] Received offerId:", offerId)
+
+        if (!offerId || offerId === "undefined") {
       return res.status(400).json({
         success: false,
         error: { message: "Missing required parameter: offerId", code: "VALIDATION_ERROR" },
@@ -310,7 +312,16 @@ export const getSeatMap = async (req, res) => {
     }
 
     const result = await duffelService.getSeatMap(offerId);
-      if (!result.success) {
+
+    if (!result.success) {
+      // ✅ Check for seat_map_unavailable specifically
+      if (result.error?.code === "seat_map_unavailable") {
+        return res.status(200).json({
+          success: true,
+          data: [],
+          message: "Seat map is not available for this flight. Seat selection is optional."
+        });
+      }
       return res.status(result.error.status || 500).json(result);
     }
 

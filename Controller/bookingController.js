@@ -7,7 +7,7 @@ import Booking from "../Model/booking.js";
 export const createFlightBooking = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { flightOffer, passengers, totalPrice } = req.body;
+    const { flightOffer, passengers, totalPrice, selectedServices } = req.body;
 
     //validate rquired fields
     if (!flightOffer || !passengers || !totalPrice) {
@@ -35,7 +35,7 @@ export const createFlightBooking = async (req, res) => {
 
     const flightData = {
       offerId: flightOffer.offerId,
-      source: flightOffer.source || "amadeus",
+      source: flightOffer.source || "duffel",
       validatingAirlineCodes: flightOffer.validatingAirlineCodes || [],
       itineraries: flightOffer.itineraries,
       price: {
@@ -45,6 +45,7 @@ export const createFlightBooking = async (req, res) => {
       },
       numberOfBookableSeats: flightOffer.numberOfBookableSeats,
       passengers,
+      selectedServices: selectedServices || []
     };
 
     //create booking

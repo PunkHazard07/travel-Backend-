@@ -54,7 +54,7 @@ export const bookingService = {
       bookingType: "flight",
       flightData: {
         offerId: flightData.offerId,
-        source: flightData.source || "amadeus",
+        source: flightData.source || "duffel",
         validatingAirlineCodes: flightData.validatingAirlineCodes || [],
         itineraries: flightData.itineraries,
         price: {
@@ -63,6 +63,7 @@ export const bookingService = {
           base: flightData.price?.base || totalPrice,
         },
         numberOfBookableSeats: flightData.numberOfBookableSeats,
+        selectedServices: flightData.selectedServices || []
       },
       totalPrice,
       status: "pending",

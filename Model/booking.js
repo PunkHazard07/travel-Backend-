@@ -45,7 +45,15 @@ const bookingSchema = new mongoose.Schema({
             total: Number,
             base: Number
         },
-        numberOfBookableSeats: Number
+        numberOfBookableSeats: Number,
+        selectedServices: [
+        {
+            id: String,
+            quantity: Number,
+            designator: String,
+            passengerId: String
+        }
+    ],
     },
     hotelData: {
         type: Object,
