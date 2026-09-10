@@ -12,7 +12,7 @@ import userRoutes from './Routes/userRoutes.js'
 import bookingRoutes from './Routes/bookingRoutes.js'
 
  // connect to MongoDB
- connectDB();
+    connectDB();
 
 const app = express();
 const PORT = process.env.PORT 
