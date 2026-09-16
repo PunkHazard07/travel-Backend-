@@ -37,6 +37,7 @@ export const fetchHotelsFromAPI = (countryCode: string, cityName: string, limit 
                 try {
                         if (res.statusCode !== 200) {
                         reject(new Error(`API returned status  ${res.statusCode}: ${data}`))
+                        return
                     }
 
                     const parsedData = JSON.parse(data);

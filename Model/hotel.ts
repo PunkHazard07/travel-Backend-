@@ -57,7 +57,7 @@ const hotelSchema = new Schema<HotelDocument>(
 );
 
 hotelSchema.index({ "location.city": 1, "location.country": 1 });
-hotelSchema.index({ rating: -1, pricePerNight: 1 });
+hotelSchema.index({ rating: -1 });
 
 const Hotel = mongoose.model<HotelDocument>("Hotel", hotelSchema);
 export default Hotel;
