@@ -14,9 +14,9 @@ export const usdToNgn = (amountUSD, rate) => {
 };
 
 export const attachNgnPrice = (hotel) => {
-  const validPrice = typeof hotel.pricePerNight === "number" && !isNaN(hotel.pricePerNight);
+  const validPrice = typeof hotel.fromPrice === "number" && !isNaN(hotel.fromPrice);
   const rate = validPrice ? getRate() : null;
-  const pricePerNightNGN = validPrice ? usdToNgn(hotel.pricePerNight, rate) : null;
+  const pricePerNightNGN = validPrice ? usdToNgn(hotel.fromPrice, rate) : null;
 
   return {
     ...hotel,
