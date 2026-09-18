@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { fetchHotelsFromAPI } from "../Config/hotel.js";
 import { getCountryCode } from "../utils/countryCodeMapper.js";
-import { attachNgnPrices } from "../utils/currencyConverter.js";
 import { escapeRegExp } from "../utils/escapeRegExp.js";
 import Hotel from "../Model/hotel.js";
 import {
@@ -9,6 +8,7 @@ import {
   fetchLowestPricesSafely,
   attachPrice,
   byRatingThenPrice,
+  buildPriceByStarTier,
 } from "../utils/hotelPricing.js";
 
 export const getHotels = async (req: Request, res: Response) => {
@@ -21,6 +21,7 @@ export const getHotels = async (req: Request, res: Response) => {
       checkout,
       adults = "2",
       guestNationality = "US",
+      currency ="NGN"
     } = req.query as Record<string, string | undefined>;
 
     if (!country || !cityName) {
@@ -48,6 +49,7 @@ export const getHotels = async (req: Request, res: Response) => {
       checkout: dates.checkout,
       guestNationality,
       adults: Number(adults),
+      currency
     });
     const withPrice = attachPrice(priceMap);
 
@@ -67,7 +69,7 @@ export const getHotels = async (req: Request, res: Response) => {
         success: true,
         source: "cache",
         count: priced.length,
-        data: attachNgnPrices(priced),
+        data: priced
       });
     }
 
@@ -85,7 +87,8 @@ export const getHotels = async (req: Request, res: Response) => {
     // save to the database - metadata only, no price field
     const savedHotels = await Promise.all(
       apiResponse.data.map(async (hotel: any) => {
-        const stars = typeof hotel.stars === "number" ? hotel.stars : 0
+        const stars = typeof hotel.stars === "number" ? hotel.stars : 0;
+
         const hotelData = {
           apiHotelId: hotel.id,
           name: hotel.name,
@@ -120,7 +123,7 @@ export const getHotels = async (req: Request, res: Response) => {
       source: "api",
       count: limitedResults.length,
       totalAvailable: savedHotels.length,
-      data: attachNgnPrices(limitedResults),
+      data: limitedResults,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -144,6 +147,7 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
       checkout,
       adults = "2",
       guestNationality = "US",
+      currency = "NGN"
     } = req.query as Record<string, string | undefined>;
 
     // Build query for MongoDB — metadata filters only, price can't be
@@ -157,9 +161,13 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
     let countryCode: string | null = null;
     if (country) {
       countryCode = getCountryCode(country);
-      if (countryCode) {
-        query["location.country"] = countryCode;
+      if (!countryCode) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid country name or code. Please provide a valid country."
+        });
       }
+      query["location.country"] = countryCode;
     }
 
     if (minRating && parseFloat(minRating) > 0) {
@@ -183,22 +191,27 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
         checkout: dates.checkout,
         guestNationality,
         adults: Number(adults),
+        currency
       });
       priced = candidates.map(attachPrice(priceMap));
     } else {
-      priced = candidates.map((h: any) => ({ ...h, fromPrice: null, fromPriceCurrency: null }));
+      priced = candidates.map((h: any) => ({ ...h, fromPriceTotal: null, fromPricePerNight: null, fromPriceCurrency: null, nights: null }));
     }
 
     if (maxPrice && !isNaN(parseFloat(maxPrice))) {
-      const maxUSD = parseFloat(maxPrice);
+      const maxAmount = parseFloat(maxPrice);
       // Hotels with no live price can't be confirmed under budget, so
       // they're excluded rather than assumed to qualify.
-      priced = priced.filter((h: any) => h.fromPrice != null && h.fromPrice <= maxUSD);
+      priced = priced.filter((h: any) => h.fromPricePerNight != null && h.fromPricePerNight <= maxAmount);
     }
 
+    // Computed after maxPrice on purpose: tiers should reflect what's
+    // actually still in the result set under the current filters,
+    const priceByStarTier = buildPriceByStarTier(priced);
+
     const sorters: Record<string, (a: any, b: any) => number> = {
-      "price-low": (a, b) => (a.fromPrice ?? Infinity) - (b.fromPrice ?? Infinity),
-      "price-high": (a, b) => (b.fromPrice ?? -Infinity) - (a.fromPrice ?? -Infinity),
+      "price-low": (a, b) => (a.fromPricePerNight ?? Infinity) - (b.fromPricePerNight ?? Infinity),
+      "price-high": (a, b) => (b.fromPricePerNight ?? -Infinity) - (a.fromPricePerNight ?? -Infinity),
       rating: byRatingThenPrice,
     };
     priced.sort(sorters[sortBy] ?? byRatingThenPrice);
@@ -216,7 +229,8 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
       page: pageNum,
       totalPages: Math.ceil(totalCount / limitNum),
       filters: { city, country, minRating, maxPrice, sortBy },
-      data: attachNgnPrices(pageResults),
+      priceByStarTier,
+      data: pageResults,
     });
   } catch (error: any) {
     res.status(500).json({
