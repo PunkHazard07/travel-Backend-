@@ -69,7 +69,7 @@ export const fetchHotelRates = (params: HotelRatesParams): Promise<any> => {
                 countryCode: params.countryCode,
                 checkin: params.checkin,
                 checkout: params.checkout,
-                currency: params.currency ?? "USD",
+                currency: params.currency ?? "NGN",
                 guestNationality: params.guestNationality ?? "US",
                 occupancies: [{ adults: params.adults ?? 2 }],
     });
