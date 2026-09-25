@@ -21,7 +21,6 @@ export const getHotels = async (req: Request, res: Response) => {
       checkout,
       adults = "2",
       guestNationality = "US",
-      currency ="NGN"
     } = req.query as Record<string, string | undefined>;
 
     if (!country || !cityName) {
@@ -49,7 +48,7 @@ export const getHotels = async (req: Request, res: Response) => {
       checkout: dates.checkout,
       guestNationality,
       adults: Number(adults),
-      currency
+      currency: "NGN"
     });
     const withPrice = attachPrice(priceMap);
 
@@ -147,7 +146,6 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
       checkout,
       adults = "2",
       guestNationality = "US",
-      currency = "NGN"
     } = req.query as Record<string, string | undefined>;
 
     // Build query for MongoDB — metadata filters only, price can't be
@@ -191,7 +189,7 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
         checkout: dates.checkout,
         guestNationality,
         adults: Number(adults),
-        currency
+        currency: "NGN"
       });
       priced = candidates.map(attachPrice(priceMap));
     } else {

@@ -1,7 +1,5 @@
 import { bookingService } from "../Config/bookingService.js";
-import { paystackService } from "../Config/paystackService.js";
 import Hotel from "../Model/hotel.js";
-import Booking from "../Model/booking.js";
 
 //create flight booking
 export const createFlightBooking = async (req, res) => {
@@ -145,155 +143,7 @@ export const createHotelBooking = async (req, res) => {
 }
 };
 
-// Initialize payment for booking
-export const initializePayment = async (req, res) => {
-  try {
-    const { bookingId } = req.body;
-    const userId = req.user?.id || req.userId;
-    const userEmail = req.user?.email || req.body.email;
-
-    if (!bookingId) {
-      return res.status(400).json({
-        success: false,
-        message: "Booking ID is required",
-      });
-    }
-
-    if (!userEmail) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is required for payment",
-      });
-    }
-
-    // Find booking
-    const booking = await Booking.findOne({ _id: bookingId, userId });
-
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found",
-      });
-    }
-
-    // Check if already paid
-    if (booking.paymentStatus === "paid") {
-      return res.status(400).json({
-        success: false,
-        message: "Booking has already been paid for",
-      });
-    }
-
-    // Check if booking is cancelled
-    if (booking.status === "cancelled") {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot pay for a cancelled booking",
-      });
-    }
-
-    // Initialize Paystack payment
-    const paymentData = await paystackService.initializePayment(
-      userEmail,
-      booking.totalPrice,
-      booking.bookingReference,
-      {
-        bookingId: booking._id.toString(),
-        bookingType: booking.bookingType,
-        userId: userId.toString(),
-      }
-    );
-
-    // Update booking with payment reference
-    booking.paymentReference = paymentData.reference;
-    booking.paymentMethod = "paystack";
-    booking.paymentStatus = "processing";
-    await booking.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Payment initialized successfully",
-      data: {
-        authorizationUrl: paymentData.authorizationUrl,
-        reference: paymentData.reference,
-        accessCode: paymentData.accessCode,
-      },
-    });
-  } catch (error) {
-    console.error("Initialize Payment Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to initialize payment",
-    });
-  }
-};
-
-// Verify payment and confirm booking
-export const verifyPayment = async (req, res) => {
-  try {
-    const { reference } = req.query;
-    const userId = req.user?.id || req.userId;
-
-    if (!reference) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment reference is required",
-      });
-    }
-
-    // Verify payment with Paystack
-    const paymentData = await paystackService.verifyPayment(reference);
-
-    if (!paymentData.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment verification failed",
-      });
-    }
-
-    // Find booking by reference
-    const booking = await Booking.findOne({
-      paymentReference: reference,
-    });
-
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found",
-      });
-    }
-
-    // Update booking payment status
-    booking.paymentStatus = "paid";
-    booking.paymentReference = reference;
-    booking.paymentMetadata = {
-      paidAt: paymentData.paidAt,
-      channel: paymentData.channel,
-      amount: paymentData.amount,
-    };
-
-    // Confirm booking with provider (simulate)
-    if (booking.status === "pending") {
-      const providerResponse = await bookingService.simulateBookingProcess(booking);
-      booking.status = providerResponse.status;
-      booking.providerBookingId = providerResponse.providerBookingId;
-    }
-
-    await booking.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Payment verified and booking confirmed",
-      data: booking,
-    });
-  } catch (error) {
-    console.error("Verify Payment Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to verify payment",
-    });
-  }
-};
+// initializePayment and verifyPayment moved to Controller/paymentController.ts
 
 //get user bookings
 export const getUserBookings = async (req, res) => {
@@ -359,4 +209,3 @@ export const cancelBooking = async (req, res) => {
     });
   }
 };
-

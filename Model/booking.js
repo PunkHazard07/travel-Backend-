@@ -97,6 +97,18 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    authorizationUrl: {
+        type: String,
+        default: null
+    },
+    accessCode: {
+        type: String,
+        default: null
+    },
+    paymentInitiatedAt: {
+        type: Date,
+        default: null
+    },
     paymentMetadata: {
         type: Object,
         default: null

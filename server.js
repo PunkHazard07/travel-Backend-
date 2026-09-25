@@ -10,16 +10,23 @@ import flightRoutes from './Routes/flightRoutes.js'
 import hotelRoutes from './Routes/hotelRoutes.js'
 import userRoutes from './Routes/userRoutes.js'
 import bookingRoutes from './Routes/bookingRoutes.js'
+import currencyRoutes from './Routes/currencyRoutes.js'
+import { startRateRefreshSchedule } from './utils/currencyConverter.js'
+import { verify } from "node:crypto";
 
  // connect to MongoDB
-    connectDB();
+connectDB();
 
 const app = express();
 const PORT = process.env.PORT 
 
 //....Middleware....
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 
 //....Routes....
 app.get('/', (req,res) => {
@@ -31,6 +38,9 @@ app.use ('/api', flightRoutes);
 app.use('/api', hotelRoutes);
 app.use('/api', userRoutes);
 app.use('/api', bookingRoutes);
+app.use('/api', currencyRoutes);
+
+startRateRefreshSchedule();
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
