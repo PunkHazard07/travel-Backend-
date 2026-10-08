@@ -3,7 +3,7 @@ export const countryNameToCode = {
     'usa': 'US',
     'america': 'US',
     'united kingdom': 'UK',
-    'uk': 'UK',
+    'Uk': 'UK',
     'london': 'UK',
     'england': 'UK',
     'nigeria': 'NG',
@@ -24,7 +24,7 @@ export const countryNameToCode = {
     'ghana': 'GH',
     'rwanda': 'RW',
     'greece': 'GR',
-    'dubai': 'DB'
+    'dubai': 'AE'
 };
 
 

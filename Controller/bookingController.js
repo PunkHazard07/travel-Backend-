@@ -23,7 +23,6 @@ export const createFlightBooking = async (req, res) => {
       });
     }
 
-    //validate flightOffer has Amadeus structure
     if (!flightOffer.offerId) {
       return res.status(400).json({
         success: false,
@@ -140,10 +139,8 @@ export const createHotelBooking = async (req, res) => {
         success: false,
         message: error.message || "Failed to create hotel booking",
     });
-}
+  }
 };
-
-// initializePayment and verifyPayment moved to Controller/paymentController.ts
 
 //get user bookings
 export const getUserBookings = async (req, res) => {

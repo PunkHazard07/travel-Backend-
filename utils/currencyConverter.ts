@@ -118,14 +118,6 @@ export const stopRateRefreshSchedule = (): void => {
     }
 };
 
-// TODO(batch-7-flight): wire this into the flight checkout path. Duffel
-// bills this account in GBP and Paystack can't charge GBP directly, so the
-// amount actually sent to Paystack needs a real NGN figure. This
-// deliberately does NOT read the cached display table above — it hits the
-// API fresh with `from` as the base, so the charge is based on the rate at
-// the moment of checkout, not whatever the display dropdown showed however
-// long ago the user opened the page. Flight controller/route work itself
-// is still parked pending the flight batch.
 export const convertForCheckout = async (amount: number, from: string, to: string): Promise<number> => {
     const table = await fetchRateTable(from);
     const rate = table.rates[to.toUpperCase()];

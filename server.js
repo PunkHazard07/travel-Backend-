@@ -11,8 +11,8 @@ import hotelRoutes from './Routes/hotelRoutes.js'
 import userRoutes from './Routes/userRoutes.js'
 import bookingRoutes from './Routes/bookingRoutes.js'
 import currencyRoutes from './Routes/currencyRoutes.js'
+import paymentRoutes from  './Routes/paymentRoutes.js'
 import { startRateRefreshSchedule } from './utils/currencyConverter.js'
-import { verify } from "node:crypto";
 
  // connect to MongoDB
 connectDB();
@@ -39,6 +39,7 @@ app.use('/api', hotelRoutes);
 app.use('/api', userRoutes);
 app.use('/api', bookingRoutes);
 app.use('/api', currencyRoutes);
+app.use('/api', paymentRoutes);
 
 startRateRefreshSchedule();
 
