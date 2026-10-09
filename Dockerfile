@@ -1,38 +1,39 @@
 # syntax=docker/dockerfile:1
+ARG NODE_VERSION=22
 
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Dockerfile reference guide at
-# https://docs.docker.com/go/dockerfile-reference/
+FROM node:${NODE_VERSION}-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
 
-# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
+# --- compile TS/JS -> dist
+FROM deps AS build
+COPY . .
+RUN npm run build
 
-ARG NODE_VERSION=24.14.0
+# --- prod-only deps
+FROM node:${NODE_VERSION}-alpine AS prod-deps
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
-FROM node:${NODE_VERSION}-alpine
+# --- runtime
+FROM node:${NODE_VERSION}-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=8080
 
-# Use production node environment by default.
-ENV NODE_ENV production
-
-
-WORKDIR /usr/src/app
-
-# Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /root/.npm to speed up subsequent builds.
-# Leverage a bind mounts to package.json and package-lock.json to avoid having to copy them into
-# into this layer.
-RUN --mount=type=bind,source=package.json,target=package.json \
-    --mount=type=bind,source=package-lock.json,target=package-lock.json \
-    --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev
-
+COPY --chown=node:node package.json ./
+COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist 
 # Run the application as a non-root user.
 USER node
-
-# Copy the rest of the source files into the image.
-COPY . .
-
 # Expose the port that the application listens on.
-EXPOSE 3000
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Run the application.
-CMD npm start
+CMD ["node", "dist/server.js"]

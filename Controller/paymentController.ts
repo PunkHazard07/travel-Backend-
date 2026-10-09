@@ -57,12 +57,6 @@ export const initializePayment = async (req: Request, res: Response) => {
             });
         }
 
-        // Idempotency guard: don't mint a second, independent Paystack
-        // transaction for a booking that already has one in flight —
-        // Paystack's `reference` has to be unique per transaction, so
-        // retrying this endpoint must never generate a new one while the
-        // first attempt is still live. Hand back exactly what was already
-        // generated instead.
         if (booking.paymentStatus === "processing" && booking.paymentReference && booking.authorizationUrl) {
             return res.status(200).json({
                 success: true,
@@ -270,11 +264,31 @@ const confirmBookingPaid = async ( booking: BookingDocument, paymentData: Paymen
 export const verifyPayment = async (req: Request, res: Response) => {
     try {
         const { reference } = req.query as { reference?: string };
+        const userId = (req as any).user?.id || (req as any).userId;
 
-        if (!reference) {
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required",
+            });
+        }
+
+        if (!reference || typeof reference !== "string") {
             return res.status(400).json({
                 success: false,
                 message: "Payment reference is required",
+            });
+        }
+
+        const booking = await Booking.findOne({
+            paymentReference: reference,
+            userId,
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found",
             });
         }
 
@@ -285,18 +299,6 @@ export const verifyPayment = async (req: Request, res: Response) => {
             return res.status(400).json({
                 success: false,
                 message: "Payment verification failed",
-            });
-        }
-
-        // Find booking by reference
-        const booking = await Booking.findOne({
-            paymentReference: reference,
-        });
-
-        if (!booking) {
-            return res.status(404).json({
-                success: false,
-                message: "Booking not found",
             });
         }
 
