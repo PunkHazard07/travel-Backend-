@@ -111,7 +111,7 @@ export const bookingService = {
     // stale it is redone; the booking's total is always set from the fresh
     // authoritative price. `priceChanged` tells the caller the customer must
     // re-confirm the new amount.
-    async refreshPrebookiIfStale(booking: BookingDocument): Promise<{ refreshed: boolean; priceChanged: boolean; previousTotal?: number; newTotal?: number }> {
+    async refreshPrebookIfStale(booking: BookingDocument): Promise<{ refreshed: boolean; priceChanged: boolean; previousTotal?: number; newTotal?: number }> {
       if (booking.bookingType !== "hotel") {
         return { refreshed: false, priceChanged: false };
       }

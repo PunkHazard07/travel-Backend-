@@ -40,7 +40,12 @@ export interface HotelBookingInput {
     expectedTotal?: number;
 }
 
-type Validation = { ok: true; value: HotelBookingInput } | { ok: false; message: string };
+// `message` / `value` are declared on both members so callers can read them
+// without relying on discriminated-union narrowing, which TypeScript only does
+// under `strictNullChecks` (this project runs with `strict: false`).
+export type Validation =
+    | { ok: true; value: HotelBookingInput; message?: undefined }
+    | { ok: false; message: string; value?: undefined };
 
 const isNonEmptyString = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -138,6 +143,10 @@ export interface PrebookPrice {
     reportedPrice: number | null;
 }
 
+// The authoritative amount to charge for a prebooked rate, on the SAME basis
+// as the prices shown at search time (retailRate.total + any tax/fee entries
+// marked `included: false`, see computeCheckoutTotal). Strict about currency:
+// a figure in the wrong currency must never become a naira charge.
 export const computePrebookPrice = (data: any, currency: string = SETTLEMENT_CURRENCY): PrebookPrice => {
     const reportedPrice = typeof data?.price === "number" && Number.isFinite(data.price) ? data.price : null;
 

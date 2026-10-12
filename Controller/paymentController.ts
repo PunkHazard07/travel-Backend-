@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { bookingService } from "../Config/bookingService.js";
+import { bookingService, BookingError, type ProviderOutcome } from "../Config/bookingService.js";
 import { paystackService } from "../Config/paystackService.js";
 import { convertForCheckout } from "../utils/currencyConverter.js";
 import Booking, { type BookingDocument, type PaymentStatus} from "../Model/booking.js";
@@ -67,6 +67,30 @@ export const initializePayment = async (req: Request, res: Response) => {
                     accessCode: booking.accessCode,
                 },
             });
+        }
+
+        // Hotels: make sure the prebook the post-payment book call will use is
+        // still fresh. If it had to be redone and the price moved, stop here so
+        // the customer confirms the new amount before any money is taken.
+        try {
+            const refresh = await bookingService.refreshPrebookIfStale(booking);
+            if (refresh.priceChanged) {
+                return res.status(409).json({
+                    success: false,
+                    code: "PRICE_CHANGED",
+                    message: "The price for this booking has changed. Please review the new total.",
+                    details: {
+                        previousTotal: refresh.previousTotal,
+                        newTotal: refresh.newTotal,
+                        currency: SETTLEMENT_CURRENCY,
+                    },
+                });
+            }
+        } catch (error) {
+            if (error instanceof BookingError) {
+                return res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
+            }
+            throw error;
         }
 
         //conversion to NGN and what paystack should actually charge
@@ -231,29 +255,41 @@ const confirmBookingPaid = async ( booking: BookingDocument, paymentData: Paymen
         return claimed;
     }
 
-    const flagProviderFailure = (reason: string) => {
-        claimed.status = "failed";
+    const flagProviderProblem = (reason: string, detail: string, bookingStatus: "failed" | "pending") => {
+        claimed.status = bookingStatus;
         claimed.paymentStatus = "flagged";
         claimed.paymentMetadata = {
             ...(claimed.paymentMetadata ?? {}),
             flaggedReason: reason,
+            providerReason: detail,
         };
     };
 
+    // Confirm with the real provider (LiteAPI for hotels; flights are still
+    // simulated until the Duffel order step exists).
+    let outcome: ProviderOutcome;
     try {
-        const providerResponse = await bookingService.simulateBookingProcess(claimed);
-        claimed.providerBookingId = providerResponse.providerBookingId;
-
-        if (providerResponse.status === "confirmed") {
-            claimed.status = "confirmed";
-        } else {
-            // Customer is charged but nothing was secured with the provider.
-            console.error(`Provider step failed after payment for booking ${claimed._id}`);
-            flagProviderFailure("provider_failed_after_payment");
-        }
+        outcome = await bookingService.confirmWithProvider(claimed);
     } catch (error: any) {
         console.error(`Provider step threw after payment for booking ${claimed._id}:`, error);
-        flagProviderFailure("provider_error_after_payment");
+        outcome = { outcome: "unknown", reason: "unexpected_error" };
+    }
+
+    if (outcome.outcome === "confirmed") {
+        claimed.status = "confirmed";
+        claimed.providerBookingId = outcome.providerBookingId;
+        if (outcome.providerData) claimed.providerData = outcome.providerData;
+    } else if (outcome.outcome === "failed") {
+        // Provider said no: nothing was booked, the customer needs a refund.
+        console.error(`Provider rejected booking ${claimed._id} after payment: ${outcome.reason}`);
+        flagProviderProblem("provider_failed_after_payment", outcome.reason, "failed");
+    } else {
+        // We can't tell whether the reservation exists. Status stays
+        // "pending" (NOT failed) so nobody refunds a customer who may hold a
+        // real booking; re-running book with the same clientReference is
+        // idempotent, so a retry/reconcile can safely settle it.
+        console.error(`Provider outcome unknown for booking ${claimed._id}: ${outcome.reason}`);
+        flagProviderProblem("provider_outcome_unknown", outcome.reason, "pending");
     }
 
     await claimed.save();
