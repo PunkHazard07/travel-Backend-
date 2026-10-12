@@ -55,6 +55,7 @@ export const fetchHotelsFromAPI = (countryCode: string, cityName: string, limit 
 export interface HotelRatesParams {
     countryCode: string;
     cityName: string;
+    hotelIds?: string[];
     checkin: string;
     checkout: string;
     currency?: string;
@@ -64,18 +65,26 @@ export interface HotelRatesParams {
 
 export const fetchHotelRates = (params: HotelRatesParams): Promise<any> => {
         return new Promise((resolve, reject) => {
-            const body = JSON.stringify({
-                cityName: params.cityName,
-                countryCode: params.countryCode,
+            const payload: Record<string, unknown> = {
                 checkin: params.checkin,
                 checkout: params.checkout,
                 currency: params.currency ?? "NGN",
                 guestNationality: params.guestNationality ?? "US",
                 occupancies: [{ adults: params.adults ?? 2 }],
-    });
+            };
+
+            if (params.hotelIds && params.hotelIds.length > 0) {
+                payload.hotelIds = params.hotelIds;
+            } else {
+                payload.cityName = params.cityName;
+                payload.countryCode = params.countryCode;
+            }
+
+            const body = JSON.stringify(payload);
 
     const options: https.RequestOptions = {
         method: "POST",
+        timeout: 30_000,
         headers: {
             "X-API-Key": liteApiConfig.apiKey,
             Accept: "application/json",
@@ -104,6 +113,7 @@ export const fetchHotelRates = (params: HotelRatesParams): Promise<any> => {
         }
     );
 
+        req.on("timeout", () => req.destroy(new Error("Rates request timed out")));
         req.on("error", (error) => reject(error));
         req.write(body);
         req.end();

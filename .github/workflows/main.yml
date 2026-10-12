@@ -50,3 +50,11 @@ jobs:
 
       - name: Unit tests
         run: npm test -- --ci
+  
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+        - uses: actions/checkout@v4
+        - run: docker build -t travel-backend:ci .

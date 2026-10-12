@@ -105,7 +105,7 @@ export const buildLowestPriceMap = (ratesResponse: any, nights: number, currency
 export const fetchLowestPricesSafely = async (params: Parameters<typeof fetchHotelRates>[0]): Promise<Map<string, LowestRate>> => {
     const cacheKey = [
         params.countryCode,
-        params.cityName.toLowerCase(),
+        (params.cityName ?? "").toLowerCase(),
         params.checkin,
         params.checkout,
         params.adults ?? 2,
@@ -189,4 +189,55 @@ export const buildPriceByStarTier = (hotels: any[]): StarTier[] => {
             hotelCount: tier.count,
         }))
         .sort((a, b) => a.stars - b.stars);
+};
+
+export interface RoomOption {
+    offerId: string;
+    roomTypeId: string | null;
+    name: string | null;
+    boardName: string | null;
+    maxOccupancy: number | null;
+    refundable: boolean | null;
+    total: number;
+    perNight: number | null;
+    currency: string;
+    nights: number;
+}
+
+// The bookable choices for ONE hotel: each room type's offerId (what the
+// customer picks, and what prebook consumes) with its tax-inclusive total on
+// the same basis as the search-page "from" prices. Cheapest first.
+export const buildRoomOptions = (ratesResponse: any, nights: number, currency: string): RoomOption[] => {
+    const hotel = ratesResponse?.data?.[0];
+    const options: RoomOption[] = [];
+
+    for (const roomType of hotel?.roomTypes ?? []) {
+        const offerId = roomType?.offerId;
+        if (!offerId) continue;
+
+        let best: { rate: any; total: number } | null = null;
+        for (const rate of roomType?.rates ?? []) {
+            if (!rate?.retailRate?.total) continue;
+            const total = computeCheckoutTotal(rate.retailRate, currency);
+            if (best === null || total < best.total) best = { rate, total };
+        }
+        if (best === null) continue;
+
+        const tag = best.rate?.cancellationPolicies?.refundableTag;
+
+        options.push({
+            offerId: String(offerId),
+            roomTypeId: roomType?.roomTypeId != null ? String(roomType.roomTypeId) : null,
+            name: best.rate?.name ?? null,
+            boardName: best.rate?.boardName ?? null,
+            maxOccupancy: typeof best.rate?.maxOccupancy === "number" ? best.rate.maxOccupancy : null,
+            refundable: tag === "RFN" ? true : tag === "NRFN" ? false : null,
+            total: best.total,
+            perNight: computePerNight(best.total, nights),
+            currency,
+            nights,
+        });
+    }
+
+    return options.sort((a, b) => a.total - b.total);
 };

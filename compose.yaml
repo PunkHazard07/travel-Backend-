@@ -1,0 +1,14 @@
+services:
+  server:
+    build:
+      context: .
+    image: travel-backend:local
+    init: true
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "8080"          # overrides .env so the container port is always known
+    ports:
+      - "8080:8080" 
+    restart: unless-stopped
+    stop_grace_period: 15s  
