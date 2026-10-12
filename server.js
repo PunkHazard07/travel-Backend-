@@ -14,6 +14,7 @@ import bookingRoutes from './Routes/bookingRoutes.js'
 import currencyRoutes from './Routes/currencyRoutes.js'
 import paymentRoutes from  './Routes/paymentRoutes.js'
 import { startRateRefreshSchedule } from './utils/currencyConverter.js'
+import { rateLimit } from "./utils/rateLimit.js";
 
 const PORT = process.env.PORT 
 const app = express();
@@ -39,6 +40,11 @@ app.get('/health', (req, res) => {
         uptime: process.uptime(),
     });
 });
+
+const authLimiter = rateLimit({ windowMs: 15 * 60_000, max: 20, message: 'Too many attempts, please try again later.' });
+const searchLimiter = rateLimit({ windowMs: 60_000, max: 60 });
+app.use(['/api/login', '/api/register'], authLimiter);
+app.use(['/api/search', '/api/hotels', '/api/airports'], searchLimiter);
 
 //mount routes...
 app.use ('/api', flightRoutes);

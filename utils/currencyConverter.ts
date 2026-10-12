@@ -1,21 +1,3 @@
-// Currency module — split into two deliberately separate paths:
-//
-// 1. Display-rate table (getDisplayRates / startRateRefreshSchedule):
-//    scheduled fetch, cached in memory, refreshed periodically. This is
-//    what powers the multi-currency dropdown on both hotel and flight
-//    pages — browsing only, never what gets charged.
-//
-// 2. Checkout conversion (convertForCheckout): always hits the API fresh,
-//    never reads the cache above. Only for the amount actually sent to
-//    Paystack — right now that's the Duffel GBP->NGN flight charge (see
-//    the TODO below; hotels never need this, LiteAPI already returns NGN
-//    directly).
-//
-// Source: open.er-api.com (no API key, free, updates once daily). Their
-// own guidance is to not poll more than once an hour, ideally once a day,
-// since the underlying data doesn't change more often than that anyway —
-// see CACHE_REFRESH_INTERVAL_MS below.
-
 const OPEN_ER_API_BASE_URL = "https://open.er-api.com/v6/latest";
 const DISPLAY_TABLE_BASE = "USD";
 

@@ -17,9 +17,10 @@ export const getExchangeRates = async (req: Request, res: Response) => {
             fetchedAt: table.fetchedAt,
         });
     } catch (error: any) {
+        console.error("getExchangeRates error:, error")
         res.status(500).json({
             success: false,
-            message: error.message,
+            message: "Failed to fetch exchange rates",
         });
     }
 };

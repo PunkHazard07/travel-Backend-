@@ -4,10 +4,14 @@ import dotenv from "dotenv";
 dotenv.config();
 
 class DuffelService {
-  constructor() {
-    this.client = new Duffel({
-      token: process.env.DUFFEL_KEY
-        });
+  get client() {
+    if (!this._client) {
+      if (!process.env.DUFFEL_KEY) {
+        throw new Error("DUFFEL_KEY is not set");
+      }
+      this._client = new Duffel({ token: process.env.DUFFEL_KEY });
+    }
+    return this._client;
   }
 
   isConfigured() {
