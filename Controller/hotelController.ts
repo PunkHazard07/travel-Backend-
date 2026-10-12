@@ -1,9 +1,13 @@
 import type { Request, Response } from "express";
-import { fetchHotelsFromAPI } from "../Config/hotel.js";
+import { fetchHotelsFromAPI, fetchHotelRates } from "../Config/hotel.js";
 import { getCountryCode } from "../utils/countryCodeMapper.js";
 import { escapeRegExp } from "../utils/escapeRegExp.js";
 import Hotel from "../Model/hotel.js";
+import { getCachedRates } from "../utils/ratesCache.js";
+import { isValidDateOnly, todayUtc } from "../utils/hotelBooking.js";
 import {
+  computeNights,
+  buildRoomOptions,
   defaultDateRange,
   fetchLowestPricesSafely,
   attachPrice,
@@ -235,5 +239,75 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+// The bookable rooms/rates for one hotel. Each option carries the offerId the
+// client later sends to POST /hotel to book that exact rate.
+export const getHotelRates = async (req: Request, res: Response) => {
+  try {
+    const { hotelId } = req.params as { hotelId?: string };
+    const { checkin, checkout, adults = "2", guestNationality = "US" } = req.query as Record<string, string | undefined>;
+
+    if (!hotelId) {
+      return res.status(400).json({ success: false, message: "hotelId is required" });
+    }
+
+    if (!isValidDateOnly(checkin) || !isValidDateOnly(checkout)) {
+      return res.status(400).json({ success: false, message: "checkin and checkout are required (YYYY-MM-DD)" });
+    }
+
+    if (checkin < todayUtc()) {
+      return res.status(400).json({ success: false, message: "Check-in date cannot be in the past" });
+    }
+
+    if (checkout <= checkin) {
+      return res.status(400).json({ success: false, message: "Check-out date must be after check-in date" });
+    }
+
+    const adultsNum = parseInt(adults, 10);
+    if (!Number.isInteger(adultsNum) || adultsNum < 1 || adultsNum > 10) {
+      return res.status(400).json({ success: false, message: "adults must be between 1 and 10" });
+    }
+
+    const nights = computeNights(checkin, checkout);
+    const hotelMeta = await Hotel.findOne({ apiHotelId: hotelId }).lean();
+    const hotelCountryCode = hotelMeta?.location?.country ?? "NG";
+    const hotelCityName = hotelMeta?.location?.city ?? "Lagos";
+    const cacheKey = ["rooms", hotelId, checkin, checkout, adultsNum, guestNationality].join("|");
+
+    let ratesResponse: any;
+    try {
+      ratesResponse = await getCachedRates(cacheKey, () =>
+        fetchHotelRates({
+          hotelIds: [hotelId],
+          countryCode: hotelCountryCode,
+          cityName: hotelCityName,
+          checkin,
+          checkout,
+          guestNationality,
+          adults: adultsNum,
+          currency: "NGN",
+        })
+      );
+    } catch (error: any) {
+      console.warn("Hotel room rates fetch failed:", error.message);
+      return res.status(502).json({ success: false, message: "Could not fetch room rates right now. Please try again shortly." });
+    }
+
+    const options = buildRoomOptions(ratesResponse, nights, "NGN");
+
+    res.status(200).json({
+      success: true,
+      hotelId,
+      checkin,
+      checkout,
+      nights,
+      currency: "NGN",
+      count: options.length,
+      data: options,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document, type Types } from "mongoose";
+import { randomBytes } from "crypto";
 
 export const BOOKING_TYPES = ["flight", "hotel"] as const;
 export const BOOKING_STATUSES = ["pending", "confirmed", "cancelled", "failed"] as const;
@@ -40,6 +41,7 @@ export interface FlightData {
     };
     numberOfBookableSeats?: number;
     selectedServices: SelectedService[];
+    passengers?: Record<string, any>[];
 }
 
 export interface CurrencyConversion {
@@ -59,6 +61,10 @@ export interface BookingDocument extends Document {
     bookingReference: string;
     provider: string;
     providerBookingId: string | null;
+    offerId: string | null;
+    prebookId: string | null;
+    prebookedAt: Date | null;
+    providerData: Record<string, any> | null;
     status: BookingStatus;
     paymentStatus: PaymentStatus;
     paymentMethod: "paystack" | null;
@@ -147,10 +153,26 @@ const bookingSchema = new Schema<BookingDocument>(
         },
         provider: {
             type: String,
-            default: "mock-provider",
+            default: null,
         },
         providerBookingId: {
             type: String,
+            default: null,
+        },
+        offerId: {
+            type: String,
+            default: null
+        },
+        prebookId: {
+            type: String,
+            default: null,
+        },
+        prebookedAt: {
+            type: Date,
+            default: null,
+        },
+        providerData: {
+            type: Schema.Types.Mixed,
             default: null,
         },
         status: {
@@ -205,7 +227,7 @@ const bookingSchema = new Schema<BookingDocument>(
 bookingSchema.pre("validate", function (next) {
     if (!this.bookingReference) {
         this.bookingReference =
-            "BK-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+            "BK-" + randomBytes(5).toString("hex").toUpperCase();
     }
 
     if (this.bookingType === "flight" && !this.flightData) {
