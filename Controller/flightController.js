@@ -314,7 +314,6 @@ export const getSeatMap = async (req, res) => {
     const result = await duffelService.getSeatMap(offerId);
 
     if (!result.success) {
-      // ✅ Check for seat_map_unavailable specifically
       if (result.error?.code === "seat_map_unavailable") {
         return res.status(200).json({
           success: true,

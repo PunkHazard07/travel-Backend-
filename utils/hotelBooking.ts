@@ -40,9 +40,7 @@ export interface HotelBookingInput {
     expectedTotal?: number;
 }
 
-// `message` / `value` are declared on both members so callers can read them
-// without relying on discriminated-union narrowing, which TypeScript only does
-// under `strictNullChecks` (this project runs with `strict: false`).
+
 export type Validation =
     | { ok: true; value: HotelBookingInput; message?: undefined }
     | { ok: false; message: string; value?: undefined };

@@ -27,12 +27,6 @@ interface RetailRate {
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-// LiteAPI marks each tax/fee with `included`. Where `included: false`,
-// that amount is NOT folded into `retailRate.total` — confirmed against
-// real sandbox data (VAT entries consistently `included: false` while
-// `total` stayed unchanged). Skipping this means undercharging the guest
-// by the tax amount at checkout, silently.
-
 export const computeCheckoutTotal = (retailRate: RetailRate, currency: string): number => {
 const totalEntry =
     retailRate.total.find((m) => m.currency === currency) ?? retailRate.total[0];

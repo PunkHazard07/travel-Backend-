@@ -14,13 +14,16 @@ import bookingRoutes from './Routes/bookingRoutes.js'
 import currencyRoutes from './Routes/currencyRoutes.js'
 import paymentRoutes from  './Routes/paymentRoutes.js'
 import { startRateRefreshSchedule } from './utils/currencyConverter.js'
+import { buildCorsOptions } from "./utils/cors.js";
 import { rateLimit } from "./utils/rateLimit.js";
 
 const PORT = process.env.PORT 
 const app = express();
 
+if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
+
 //....Middleware....
-app.use(cors());
+app.use(cors(buildCorsOptions()));
 app.use(express.json({
     verify: (req, res, buf) => {
         req.rawBody = buf;
