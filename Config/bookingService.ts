@@ -3,7 +3,7 @@ import Booking, { type BookingDocument} from "../Model/booking.js";
 import Hotel from "../Model/hotel.js";
 import { BookingError } from "../utils/bookingError.js";
 import { prebookOrThrow, bookHotel, prebookMaxAgeMs, type ProviderOutcome } from "../utils/hotelProvider.js";
-import { simulateBookingProcess } from "../utils/flightSimulation.js";
+import { bookFlight } from "../utils/flightProvider.js";
 import { hasPriceChanged, type HotelBookingInput } from "../utils/hotelBooking.js";
 
 // Re-exported so the controllers' existing imports from this file keep working.
@@ -16,8 +16,7 @@ export const bookingService = {
       return bookHotel(booking);
     }
 
-    const simulated = await simulateBookingProcess(booking);
-    return simulated.success ? { outcome: "confirmed", providerBookingId: simulated.providerBookingId }: { outcome: "failed", reason: "simulated_failure" };
+    return bookFlight(booking);
   },
 
   // Creates a flight booking. `totalPrice` must already be the

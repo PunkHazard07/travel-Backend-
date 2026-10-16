@@ -24,7 +24,7 @@ export const getHotels = async (req: Request, res: Response) => {
       checkin,
       checkout,
       adults = "2",
-      guestNationality = "US",
+      guestNationality,
     } = req.query as Record<string, string | undefined>;
 
     if (!country || !cityName) {
@@ -149,7 +149,7 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
       checkin,
       checkout,
       adults = "2",
-      guestNationality = "US",
+      guestNationality,
     } = req.query as Record<string, string | undefined>;
 
     // Build query for MongoDB — metadata filters only, price can't be
@@ -247,7 +247,7 @@ export const advancedHotelSearch = async (req: Request, res: Response) => {
 export const getHotelRates = async (req: Request, res: Response) => {
   try {
     const { hotelId } = req.params as { hotelId?: string };
-    const { checkin, checkout, adults = "2", guestNationality = "US" } = req.query as Record<string, string | undefined>;
+    const { checkin, checkout, adults = "2", guestNationality } = req.query as Record<string, string | undefined>;
 
     if (!hotelId) {
       return res.status(400).json({ success: false, message: "hotelId is required" });

@@ -103,7 +103,7 @@ export const fetchLowestPricesSafely = async (params: Parameters<typeof fetchHot
         params.checkin,
         params.checkout,
         params.adults ?? 2,
-        params.guestNationality ?? "US",
+        params.guestNationality,
     ].join("|");
 
     const nights = computeNights(params.checkin, params.checkout);

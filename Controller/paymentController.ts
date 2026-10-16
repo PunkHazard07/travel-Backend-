@@ -57,44 +57,6 @@ export const initializePayment = async (req: Request, res: Response) => {
             });
         }
 
-        if (booking.paymentStatus === "processing" && booking.paymentReference && booking.authorizationUrl) {
-            return res.status(200).json({
-                success: true,
-                message: "Payment already initialized for this booking",
-                data: {
-                    authorizationUrl: booking.authorizationUrl,
-                    reference: booking.paymentReference,
-                    accessCode: booking.accessCode,
-                },
-            });
-        }
-
-        // Hotels: make sure the prebook the post-payment book call will use is
-        // still fresh. If it had to be redone and the price moved, stop here so
-        // the customer confirms the new amount before any money is taken.
-        try {
-            const refresh = await bookingService.refreshPrebookIfStale(booking);
-            if (refresh.priceChanged) {
-                return res.status(409).json({
-                    success: false,
-                    code: "PRICE_CHANGED",
-                    message: "The price for this booking has changed. Please review the new total.",
-                    details: {
-                        previousTotal: refresh.previousTotal,
-                        newTotal: refresh.newTotal,
-                        currency: SETTLEMENT_CURRENCY,
-                    },
-                });
-            }
-        } catch (error) {
-            if (error instanceof BookingError) {
-                return res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
-            }
-            throw error;
-        }
-
-        //conversion to NGN and what paystack should actually charge
-        //fresh price from FX api
         let chargeAmount = booking.totalPrice;
         let currencyConversion: {
             from: string;
@@ -128,6 +90,30 @@ export const initializePayment = async (req: Request, res: Response) => {
                     convertedAmount: chargeAmount,
                 };
             }
+        }
+
+        // For hotels: make sure the prebook the post-payment book call will use is
+        // still fresh. If it had to be redone and the price moved, stop here so
+        // the customer confirms the new amount before any money is taken.
+        try {
+            const refresh = await bookingService.refreshPrebookIfStale(booking);
+            if (refresh.priceChanged) {
+                return res.status(409).json({
+                    success: false,
+                    code: "PRICE_CHANGED",
+                    message: "The price for this booking has changed. Please review the new total.",
+                    details: {
+                        previousTotal: refresh.previousTotal,
+                        newTotal: refresh.newTotal,
+                        currency: SETTLEMENT_CURRENCY,
+                    },
+                });
+            }
+        } catch (error) {
+            if (error instanceof BookingError) {
+                return res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
+            }
+            throw error;
         }
 
         // Initialize Paystack payment

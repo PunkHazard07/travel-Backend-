@@ -234,6 +234,15 @@ async getSeatMap(offerId) {
     }
   }
 
+  async createOrder(orderParams) {
+    try {
+      const response = await this.client.orders.create(orderParams);
+      return { success: true, data: response.data };
+    } catch (error) {
+      return this._handleError(error, "createOrder");
+    }
+  }
+
   _handleError(error, methodName) {
     console.error(`DuffelService.${methodName} error:`, error);
 
