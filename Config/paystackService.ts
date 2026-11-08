@@ -13,6 +13,8 @@ interface InitializePaymentResult {
 
 interface VerifyPaymentResult {
     success: boolean;
+    status: string;
+    gatewayResponse: string | null;
     amount: number;
     reference: string;
     paidAt: string;
@@ -85,6 +87,8 @@ export const paystackService = {
 
             return {
                 success: data.status === "success",
+                status: data.status,
+                gatewayResponse: data.gatewayResponse ?? null,
                 amount: data.amount / 100, // Convert from kobo/cents
                 reference: data.reference,
                 paidAt: data.paid_at,

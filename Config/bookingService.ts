@@ -43,7 +43,7 @@ export const bookingService = {
     const booking = new Booking({
       userId,
       bookingType: "flight",
-      provider: "mock-provider",
+      provider: "Duffel",
       offerId: flightData.offerId,
       flightData: {
         offerId: flightData.offerId,

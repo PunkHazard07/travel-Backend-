@@ -3,6 +3,7 @@ import { bookingService, BookingError, type ProviderOutcome } from "../Config/bo
 import { paystackService } from "../Config/paystackService.js";
 import { convertForCheckout } from "../utils/currencyConverter.js";
 import Booking, { type BookingDocument, type PaymentStatus} from "../Model/booking.js";
+import { checkPaymentEligibility } from "../utils/paymentEligibility.js";
 
 const SETTLEMENT_CURRENCY = "NGN";
 
@@ -41,20 +42,13 @@ export const initializePayment = async (req: Request, res: Response) => {
             });
         }
 
-        // Check if already paid
-        if (booking.paymentStatus === "paid") {
-            return res.status(400).json({
+        const eligibility = checkPaymentEligibility(booking)
+        if (!eligibility.eligible) {
+            return res.status(409).json({
                 success: false,
-                message: "Booking has already been paid for",
-            });
-        }
-
-        // Check if booking is cancelled
-        if (booking.status === "cancelled") {
-            return res.status(400).json({
-                success: false,
-                message: "Cannot pay for a cancelled booking",
-            });
+                code: eligibility.code,
+                message: eligibility.message
+            })
         }
 
         let chargeAmount = booking.totalPrice;
