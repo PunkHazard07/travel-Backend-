@@ -1,15 +1,55 @@
 import type { Request, Response } from "express";
 import { bookingService, BookingError, type ProviderOutcome } from "../Config/bookingService.js";
 import { paystackService } from "../Config/paystackService.js";
+import { paymentAttemptService, type ProviderVerification } from "../Config/paymentAttemptService.js";
 import { convertForCheckout } from "../utils/currencyConverter.js";
 import Booking, { type BookingDocument, type PaymentStatus} from "../Model/booking.js";
+import type { PaymentAttemptDocument, ResolvedBy } from "../Model/paymentAttempt.js";
 import { checkPaymentEligibility } from "../utils/paymentEligibility.js";
+import { decideAttemptRetry } from "../utils/paymentAttemptEligibility.js";
 
 const SETTLEMENT_CURRENCY = "NGN";
 
+type VerifiedPayment = Awaited<ReturnType<typeof paystackService.verifyPayment>>;
+
 //the amount paystack is asked to charge in NGN 
-const getExpectedChargeAmount = (booking: BookingDocument): number =>
-    booking.currencyConversion?.convertedAmount ?? booking.totalPrice;
+const getExpectedChargeAmount = (booking: BookingDocument): number => booking.currencyConversion?.convertedAmount ?? booking.totalPrice;
+
+//what a paystack verification tells us about one attempt 
+const toOutcomeInput = (paymentData: VerifiedPayment): ProviderVerification => ({
+    providerStatus: paymentData.status,
+    gatewayResponse: paymentData.gatewayResponse,
+    channel: paymentData.channel,
+    amount: paymentData.amount,
+    paidAt: paymentData.paidAt,
+});
+
+// Validates fresh hotel prebook pricing; stops if price changed for user confirmation, returning true if a response was sent.
+const rejectIfPrebookStale = async (booking: BookingDocument, res: Response): Promise<boolean> => {
+    try {
+        const refresh = await bookingService.refreshPrebookIfStale(booking);
+        if (refresh.priceChanged) {
+            res.status(409).json({
+                success: false,
+                code: "PRICE_CHANGED",
+                message: "The price for this booking has changed. Please review the new total.",
+                details: {
+                    previousTotal: refresh.previousTotal,
+                    newTotal: refresh.newTotal,
+                    currency: SETTLEMENT_CURRENCY
+                }
+            });
+            return true;
+        }
+        return false;
+    } catch (error) {
+        if (error instanceof BookingError) {
+            res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
+            return true;
+        }
+        throw error;
+    }
+};
 
 // Initialize payment for booking
 export const initializePayment = async (req: Request, res: Response) => {
@@ -42,6 +82,7 @@ export const initializePayment = async (req: Request, res: Response) => {
             });
         }
 
+        //Layer 1: is the booking itself payable? (pending + unpaid only)
         const eligibility = checkPaymentEligibility(booking)
         if (!eligibility.eligible) {
             return res.status(409).json({
@@ -49,6 +90,85 @@ export const initializePayment = async (req: Request, res: Response) => {
                 code: eligibility.code,
                 message: eligibility.message
             })
+        }
+
+        //Layer2: what do this booking's earlier payment attempts allow?
+        const blockingAttempts = await paymentAttemptService.getBlockingAttempts(booking._id);
+        const retry = decideAttemptRetry(blockingAttempts);
+
+        if (retry.action === "reject") {
+            return res.status(409).json({
+                success: false,
+                code: retry.code,
+                message: retry.message
+            });
+        }
+
+        if (retry.action === "resume") {
+            const existing = retry.attempt;
+
+            //Ask Paystack what happened to the earlier attempt before doing anything.
+            let verification: VerifiedPayment;
+            try {
+                verification= await paystackService.verifyPayment(existing.reference);
+            } catch (verifyError) {
+                console.error(`Could not verify earlier attempt ${existing.reference}:`, verifyError);
+                return res.status(503).json({
+                    success: false,
+                    code: "VERIFICATION_UNAVAILABLE",
+                    message: "We couldn't confirm your earlier payment attempt. Please try again shortly.",
+                });
+            }
+
+            //the earlier attempt was actually paid: settle it, don't start another.
+            if (verification.success) {
+                await settleAttemptPayment(booking, existing, verification, "verify");
+                return res.status(409).json({
+                    success: false,
+                    code: "ALREADY_PAID",
+                    message: "Your earlier payment went through. Your booking is being finalised.",
+                });
+            }
+
+            const outcome = await paymentAttemptService.recordOutcome(
+                existing.reference,
+                toOutcomeInput(verification),
+                "verify"
+            );
+            const current = outcome.attempt;
+
+            if (current?.status === "success") {
+                return res.status(409).json({
+                    success: false,
+                    code: "ALREADY_PAID",
+                    message: "Payment for this booking has already been received",
+                });
+            }
+
+            if (current?.status === "unknown") {
+                return res.status(409).json({
+                    success: false,
+                    code: "PAYMENT_UNDER_REVIEW",
+                    message: "An earlier payment for this booking is being reviewed. Please contact support",
+                });
+            }
+
+            //still open at paystack (pending, ongoing, or abandoned can still be paid): hand back the same link instead of a second payment
+            if (current?.status === "pending") {
+                if (await rejectIfPrebookStale(booking, res)) return;
+
+                return res.status(200).json({
+                    success: true,
+                    message: "Existing payment resumed",
+                    data: {
+                        authorizationUrl: current.authorizationUrl,
+                        reference: current.reference,
+                        accessCode: current.accessCode,
+                        resumed: true,
+                    },
+                });
+            }
+            //earlier attempt is now failed: fall through and start a new one
         }
 
         let chargeAmount = booking.totalPrice;
@@ -86,52 +206,68 @@ export const initializePayment = async (req: Request, res: Response) => {
             }
         }
 
-        // For hotels: make sure the prebook the post-payment book call will use is
-        // still fresh. If it had to be redone and the price moved, stop here so
-        // the customer confirms the new amount before any money is taken.
-        try {
-            const refresh = await bookingService.refreshPrebookIfStale(booking);
-            if (refresh.priceChanged) {
-                return res.status(409).json({
-                    success: false,
-                    code: "PRICE_CHANGED",
-                    message: "The price for this booking has changed. Please review the new total.",
-                    details: {
-                        previousTotal: refresh.previousTotal,
-                        newTotal: refresh.newTotal,
-                        currency: SETTLEMENT_CURRENCY,
-                    },
-                });
-            }
-        } catch (error) {
-            if (error instanceof BookingError) {
-                return res.status(error.statusCode).json({ success: false, code: error.code, message: error.message });
-            }
-            throw error;
+        if (await rejectIfPrebookStale(booking, res)) return;
+
+        const reservation = await paymentAttemptService.reserve({
+            bookingId: booking._id,
+            userId,
+            bookingReference: booking.bookingReference,
+            amount: chargeAmount,
+            currency: SETTLEMENT_CURRENCY,
+            currencyConversion,
+        });
+
+        if (reservation.conflict) {
+            return res.status(409).json({
+                success: false,
+                code: "PAYMENT_IN_PROGRESS",
+                message: "A payment is already being set up for this booking. Please try again in a moment.",
+            });
         }
 
-        // Initialize Paystack payment
-        const paymentData = await paystackService.initializePayment(
-            userEmail,
-            chargeAmount,
-            booking.bookingReference,
-            {
-                bookingId: booking._id.toString(),
-                bookingType: booking.bookingType,
-                userId: userId.toString(),
-                ...(currencyConversion ? { currencyConversion } : {}),
-            }
-        );
+        const attempt: PaymentAttemptDocument = reservation.attempt;
 
-        // Update booking with payment reference
-        booking.paymentReference = paymentData.reference;
-        booking.paymentMethod = "paystack";
-        booking.paymentStatus = "processing";
-        booking.authorizationUrl = paymentData.authorizationUrl;
-        booking.accessCode = paymentData.accessCode;
-        booking.paymentInitiatedAt = new Date();
-        booking.set("currencyConversion", currencyConversion ?? undefined); //persist the locked-in conversion
-        await booking.save();
+        //initialize paystack payment under this attempts own unique reference
+        let paymentData: Awaited<ReturnType<typeof paystackService.initializePayment>>;
+        try {
+            paymentData = await paystackService.initializePayment(
+                userEmail,
+                chargeAmount,
+                attempt.reference,
+                {
+                    bookingReference: booking.bookingReference,
+                    bookingId: booking._id.toString(),
+                    bookingType: booking.bookingType,
+                    userId: userId.toString(),
+                    attemptId: attempt._id.toString(),
+                    ...(currencyConversion ? { currencyConversion } : {}),
+                }
+            );
+        } catch (initError: any) {
+            // Close the attempt so the customer isn't locked out of retrying.
+            await paymentAttemptService.markInitializationFailed(attempt._id, initError?.message ?? "unknown");
+            throw initError;
+        }
+
+        await paymentAttemptService.markPending(attempt._id, {
+            authorizationUrl: paymentData.authorizationUrl,
+            accessCode: paymentData.accessCode,
+        });
+
+        const bookingUpdate: Record<string, any> = {
+            $set: {
+                paymentReference: attempt.reference,
+                paymentMethod: "paystack",
+                authorizationUrl: paymentData.authorizationUrl,
+                accessCode: paymentData.accessCode,
+                paymentInitiatedAt: new Date(),
+                ...(currencyConversion ? { currencyConversion } : {}),
+            },
+        };
+        if (!currencyConversion) {
+            bookingUpdate.$unset = { currencyConversion: "" };
+        }
+        await Booking.updateOne({ _id: booking._id, paymentStatus: "unpaid" }, bookingUpdate);
 
         res.status(200).json({
             success: true,
@@ -140,6 +276,7 @@ export const initializePayment = async (req: Request, res: Response) => {
                 authorizationUrl: paymentData.authorizationUrl,
                 reference: paymentData.reference,
                 accessCode: paymentData.accessCode,
+                resumed: false
             },
         });
     } catch (error: any) {
@@ -176,9 +313,10 @@ const flagBooking = async ( bookingId: any, reason: string, paymentData: Payment
 };
 
 //shared idempotent to confirm booking as a step called from both verifyPayment and paystackwebhook
-const confirmBookingPaid = async ( booking: BookingDocument, paymentData: PaymentData): Promise<BookingDocument> => {
-    const latest = async (): Promise<BookingDocument> =>
-        (await Booking.findById(booking._id)) ?? booking;
+// expectedAmountOverride: the amount the paying ATTEMPT was asked to charge. A late payment on
+// an older attempt must be compared with that attempt's amount, not the booking's latest conversion.
+const confirmBookingPaid = async ( booking: BookingDocument, paymentData: PaymentData, expectedAmountOverride?: number): Promise<BookingDocument> => {
+    const latest = async (): Promise<BookingDocument> => (await Booking.findById(booking._id)) ?? booking;
 
     if (!OPEN_PAYMENT_STATES.includes(booking.paymentStatus)) {
         return booking;
@@ -190,7 +328,7 @@ const confirmBookingPaid = async ( booking: BookingDocument, paymentData: Paymen
         return (await flagBooking(booking._id, "paid_after_cancel", paymentData)) ?? (await latest());
     }
 
-    const expectedAmount = getExpectedChargeAmount(booking);
+    const expectedAmount = expectedAmountOverride ?? getExpectedChargeAmount(booking);
     const expectedKobo = Math.round(expectedAmount * 100);
     const paidKobo = Math.round(paymentData.amount * 100);
 
@@ -245,8 +383,6 @@ const confirmBookingPaid = async ( booking: BookingDocument, paymentData: Paymen
         };
     };
 
-    // Confirm with the real provider (LiteAPI for hotels; flights are still
-    // simulated until the Duffel order step exists).
     let outcome: ProviderOutcome;
     try {
         outcome = await bookingService.confirmWithProvider(claimed);
@@ -276,6 +412,32 @@ const confirmBookingPaid = async ( booking: BookingDocument, paymentData: Paymen
     return claimed;
 };
 
+// Settles a verified-successful payment: confirms the booking (idempotent, atomic),
+// then records the outcome on the attempt. Called from verify, webhook and resume.
+const settleAttemptPayment = async (booking: BookingDocument, attempt: PaymentAttemptDocument | null, paymentData: VerifiedPayment, source: ResolvedBy): Promise<BookingDocument> => {
+    const settled = await confirmBookingPaid(booking, paymentData, attempt?.amount);
+
+    if (attempt) {
+        try {
+            await paymentAttemptService.recordOutcome(attempt.reference, toOutcomeInput(paymentData), source);
+
+            // The booking was already settled by a DIFFERENT attempt, so this payment is a duplicate that needs a manual refund. Make it findable.
+            const bookingIsSettled = settled.paymentStatus !== "unpaid" && settled.paymentStatus !== "processing";
+            if (bookingIsSettled && settled.paymentReference && settled.paymentReference !== attempt.reference) {
+                console.error(
+                    `Duplicate payment: attempt ${attempt.reference} paid, booking ${settled._id} already settled by ${settled.paymentReference}`
+                );
+                await paymentAttemptService.flagDuplicatePayment(attempt._id);
+            }
+        } catch (recordError) {
+            // The booking is already settled; a failure here must not undo or hide that.
+            console.error(`Could not record outcome for attempt ${attempt.reference}:`, recordError);
+        }
+    }
+
+    return settled;
+};
+
 // Verify payment and confirm booking
 export const verifyPayment = async (req: Request, res: Response) => {
     try {
@@ -296,10 +458,10 @@ export const verifyPayment = async (req: Request, res: Response) => {
             });
         }
 
-        const booking = await Booking.findOne({
-            paymentReference: reference,
-            userId,
-        });
+        // Attempt first (covers old links too), then its booking. Bookings paid
+        // before attempts existed are still found by their stored reference.
+        const attempt = await paymentAttemptService.findByReference(reference);
+        const booking = attempt ? await Booking.findOne({ _id: attempt.bookingId, userId}): await Booking.findOne({ paymentReference: reference, userId });
 
         if (!booking) {
             return res.status(404).json({
@@ -309,16 +471,35 @@ export const verifyPayment = async (req: Request, res: Response) => {
         }
 
         // Verify payment with Paystack
-        const paymentData = await paystackService.verifyPayment(reference);
+        let paymentData: VerifiedPayment;
+        try {
+            paymentData = await paystackService.verifyPayment(reference);
+        } catch (verifyError) {
+            console.error(`Could not verify payment ${reference}:`, verifyError);
+            if (attempt) {
+                // note the check, change no status
+                await paymentAttemptService.recordOutcome(reference, { providerStatus: null }, "verify");
+            }
+            return res.status(503).json({
+                success: false,
+                code: "VERIFICATION_UNAVAILABLE",
+                message: "We couldn't verify your payment right now. Please try again shortly.",
+            });
+        }
 
         if (!paymentData.success) {
+            if (attempt) {
+                await paymentAttemptService.recordOutcome(reference, toOutcomeInput(paymentData), "verify");
+            }
             return res.status(400).json({
                 success: false,
+                code: paymentData.status === "failed" ? "PAYMENT_FAILED" : "PAYMENT_NOT_COMPLETED",
+                status: paymentData.status,
                 message: "Payment verification failed",
             });
         }
 
-        const settled = await confirmBookingPaid(booking, paymentData);
+        const settled = await settleAttemptPayment(booking, attempt, paymentData, "verify");
 
         // Money was taken but the booking couldn't be confirmed (wrong
         // amount, cancelled, or provider failure).
@@ -345,9 +526,6 @@ export const verifyPayment = async (req: Request, res: Response) => {
     }
 };
 
-// Paystack webhook — server-to-server notification, no user JWT, no
-// `authenticate` middleware (see Routes/paymentRoutes.js). Authenticates
-// itself via the x-paystack-signature header instead.
 export const paystackWebhook = async (req: Request, res: Response) => {
     try {
         const signature = req.headers["x-paystack-signature"] as string | undefined;
@@ -374,7 +552,10 @@ export const paystackWebhook = async (req: Request, res: Response) => {
             return res.status(200).json({ success: true, message: "No reference in payload, ignored" });
         }
 
-        const booking = await Booking.findOne({ paymentReference: reference });
+        const attempt = await paymentAttemptService.findByReference(reference);
+        const booking = attempt
+            ? await Booking.findById(attempt.bookingId)
+            : await Booking.findOne({ paymentReference: reference });
 
         if (!booking) {
             console.warn(`Webhook received for unknown booking reference: ${reference}`);
@@ -384,10 +565,13 @@ export const paystackWebhook = async (req: Request, res: Response) => {
         const paymentData = await paystackService.verifyPayment(reference);
 
         if (!paymentData.success) {
+            if (attempt) {
+                await paymentAttemptService.recordOutcome(reference, toOutcomeInput(paymentData), "webhook");
+            }
             return res.status(200).json({ success: true, message: "Re-verification did not confirm success" });
         }
 
-        await confirmBookingPaid(booking, paymentData);
+        await settleAttemptPayment(booking, attempt, paymentData, "webhook");
 
         res.status(200).json({ success: true, message: "Webhook processed" });
     } catch (error: any) {

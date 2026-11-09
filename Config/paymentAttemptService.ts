@@ -1,5 +1,6 @@
 import PaymentAttempt, {
     attemptStatusFields,
+    generateAttemptReference,
     type AttemptStatus,
     type PaymentAttemptDocument,
     type ResolvedBy,
@@ -56,7 +57,101 @@ const toDate = (value: string | Date | null | undefined): Date | null => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
+export type ReserveAttemptInput = {
+    bookingId: any;
+    userId: any;
+    bookingReference: string;
+    amount: number;
+    currency: string;
+    currencyConversion?: {
+        from: string;
+        to: string;
+        originalAmount: number;
+        convertedAmount: number;
+    } | null;
+};
+
+export type ReserveAttemptResult = {
+    // true when another request already holds the booking's one active attempt
+    conflict: boolean;
+    attempt: PaymentAttemptDocument | null;
+};
+
+const isDuplicateKeyError = (error: any): boolean => error?.code === 11000;
+
 export const paymentAttemptService = {
+    async getBlockingAttempts(bookingId: any): Promise<PaymentAttemptDocument[]> {
+        return PaymentAttempt.find({
+            bookingId,
+            status: { $in: ["success", "initiating", "pending", "unknown"] }
+        }).sort({ createdAt: -1 });
+    },
+
+    async findByReference(reference: string): Promise<PaymentAttemptDocument | null> {
+        return PaymentAttempt.findOne({ reference });
+    },
+
+    // Reserve the booking's single active attempt BEFORE calling Paystack.
+    // The partial unique index (one_active_attempt_per_booking) lets exactly
+    // one of several simultaneous requests succeed; the rest get conflict: true.
+    async reserve(input: ReserveAttemptInput): Promise<ReserveAttemptResult> {
+        try {
+            const attempt = await PaymentAttempt.create({
+                bookingId: input.bookingId,
+                userId: input.userId,
+                reference: generateAttemptReference(input.bookingReference),
+                amount: input.amount,
+                currency: input.currency,
+                currencyConversion: input.currencyConversion ?? undefined,
+                ...attemptStatusFields("initiating"),
+            });
+            return { conflict: false, attempt };
+        } catch (error) {
+            if (isDuplicateKeyError(error)) {
+                return { conflict: true, attempt: null };
+            }
+            throw error;
+        }
+    },
+
+    //initiate pending once paystack has issued the link. So it doesn't overwrite an attempt that's something else already resolved.
+    async markPending(attemptId: any, link: { authorizationUrl: string; accessCode: string }): Promise<PaymentAttemptDocument | null> {
+        return PaymentAttempt.findOneAndUpdate({
+            _id: attemptId, status: "initiating" },
+            {
+                $set: {
+                    ...attemptStatusFields("pending"),
+                    authorizationUrl: link.authorizationUrl,
+                    accessCode: link.accessCode
+                },
+            },
+            { new: true }
+        );
+    },
+
+    //paystack refused to initialise: close the attempt so the customer can retry.
+    async markInitializationFailed(attemptId: any, reason: string): Promise<void> {
+        await PaymentAttempt.updateOne(
+            { _id: attemptId, status: "initiating" },
+            {
+                $set: {
+                    ...attemptStatusFields("failed"),
+                    failureReason: `initialization_failed: ${reason}`.slice(0, 300),
+                    verifiedAt: new Date(),
+                },
+            }
+        );
+    },
+
+    // Money arrived on this attempt, but the booking was already settled by a
+    // different one. Refund is a manual step for now; this makes it findable.
+    async flagDuplicatePayment(attemptId: any): Promise<void> {
+        await PaymentAttempt.updateOne(
+            { _id: attemptId },
+            { $set: { failureReason: "duplicate_payment_refund_required"}}
+        );
+    },
+    
     //single entry point for webhook, verify and the reconcile job.
     async recordOutcome(reference: string, verification: ProviderVerification, source: ResolvedBy): Promise<RecordOutcomeResult> {
         const now = new Date();

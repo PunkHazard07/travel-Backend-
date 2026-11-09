@@ -33,7 +33,7 @@ export const paystackService = {
     async initializePayment(
         email: string,
         amount: number,
-        bookingReference: string,
+        reference: string,
         metadata: Record<string, any> = {}
     ): Promise<InitializePaymentResult> {
         try {
@@ -42,12 +42,9 @@ export const paystackService = {
                 {
                     email,
                     amount: Math.round(amount * 100), // Convert to kobo/cents
-                    reference: bookingReference,
+                    reference,
                     callback_url: `${process.env.VITE_FRONTEND_URL}/payment/callback`,
-                    metadata: {
-                        bookingReference,
-                        ...metadata,
-                    },
+                    metadata
                 },
                 {
                     headers: {

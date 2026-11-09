@@ -4,6 +4,14 @@ const findOne = jest.fn<(...args: any[]) => Promise<any>>();
 const paystackInitialize = jest.fn<(...args: any[]) => Promise<any>>();
 const refreshPrebookIfStale = jest.fn<(...args: any[]) => Promise<any>>();
 const convertForCheckout = jest.fn<(...args: any[]) => Promise<number>>();
+const bookingUpdateOne = jest.fn<(...args: any[]) => Promise<any>>();
+const getBlockingAttempts = jest.fn<(...args: any[]) => Promise<any[]>>();
+const reserve = jest.fn<(...args: any[]) => Promise<any>>();
+const markPending = jest.fn<(...args: any[]) => Promise<any>>();
+const markInitializationFailed = jest.fn<(...args: any[]) => Promise<any>>();
+const recordOutcome = jest.fn<(...args: any[]) => Promise<any>>();
+const findByReference = jest.fn<(...args: any[]) => Promise<any>>();
+const flagDuplicatePayment = jest.fn<(...args: any[]) => Promise<any>>();
 
 class MockBookingError extends Error {
     statusCode: number;
@@ -17,10 +25,21 @@ class MockBookingError extends Error {
 
 jest.unstable_mockModule("../Model/booking.js", () => ({
     __esModule: true,
-    default: { findOne, findOneAndUpdate: jest.fn(), findById: jest.fn() },
+    default: { findOne, findOneAndUpdate: jest.fn(), findById: jest.fn(), updateOne: bookingUpdateOne },
 }));
 jest.unstable_mockModule("../Config/paystackService.js", () => ({
     paystackService: { initializePayment: paystackInitialize },
+}));
+jest.unstable_mockModule("../Config/paymentAttemptService.js", () => ({
+    paymentAttemptService: {
+        getBlockingAttempts,
+        reserve,
+        markPending,
+        markInitializationFailed,
+        recordOutcome,
+        findByReference,
+        flagDuplicatePayment,
+    },
 }));
 jest.unstable_mockModule("../Config/bookingService.js", () => ({
     bookingService: { refreshPrebookIfStale },
@@ -68,6 +87,13 @@ beforeEach(() => {
     });
     refreshPrebookIfStale.mockResolvedValue({ priceChanged: false });
     convertForCheckout.mockResolvedValue(100);
+    getBlockingAttempts.mockResolvedValue([]);
+    reserve.mockResolvedValue({
+        conflict: false,
+        attempt: { _id: { toString: () => "attempt-1" }, reference: "ref-1" },
+    });
+    markPending.mockResolvedValue({});
+    bookingUpdateOne.mockResolvedValue({});
 });
 
 describe("checkPaymentEligibility", () => {
@@ -106,6 +132,7 @@ describe("initializePayment eligibility gate", () => {
         await initializePayment(makeReq(), res);
 
         expect(paystackInitialize).toHaveBeenCalledTimes(1);
+        expect(paystackInitialize.mock.calls[0][2]).toBe("ref-1");
         expect(res.status).toHaveBeenCalledWith(200);
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -141,6 +168,8 @@ describe("initializePayment eligibility gate", () => {
         );
         expect(convertForCheckout).not.toHaveBeenCalled();
         expect(refreshPrebookIfStale).not.toHaveBeenCalled();
+        expect(getBlockingAttempts).not.toHaveBeenCalled();
+        expect(reserve).not.toHaveBeenCalled();
         expect(paystackInitialize).not.toHaveBeenCalled();
         expect(booking.save).not.toHaveBeenCalled();
     });
