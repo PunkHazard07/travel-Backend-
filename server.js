@@ -14,12 +14,27 @@ import bookingRoutes from './Routes/bookingRoutes.js'
 import currencyRoutes from './Routes/currencyRoutes.js'
 import paymentRoutes from  './Routes/paymentRoutes.js'
 import { startRateRefreshSchedule } from './utils/currencyConverter.js'
+import { startPaymentReconciliationSchedule, stopPaymentReconciliationSchedule } from "./Config/paymentReconciliation.js";
+import { buildCorsOptions } from "./utils/cors.js";
+import { rateLimit } from "./utils/rateLimit.js";
 
 const PORT = process.env.PORT 
 const app = express();
 
+const trustProxyHops = process.env.TRUST_PROXY?.trim();
+
+if (trustProxyHops) {
+    const hops = Number(trustProxyHops);
+
+    if (!Number.isSafeInteger(hops) || hops < 0) {
+        throw new Error("TRUST_PROXY must be a non-negative safe integer");
+    }
+
+    app.set("trust proxy", hops);
+}
+
 //....Middleware....
-app.use(cors());
+app.use(cors(buildCorsOptions()));
 app.use(express.json({
     verify: (req, res, buf) => {
         req.rawBody = buf;
@@ -40,6 +55,11 @@ app.get('/health', (req, res) => {
     });
 });
 
+const authLimiter = rateLimit({ windowMs: 15 * 60_000, max: 20, message: 'Too many attempts, please try again later.' });
+const searchLimiter = rateLimit({ windowMs: 60_000, max: 60 });
+app.use(['/api/login', '/api/register'], authLimiter);
+app.use(['/api/search', '/api/hotels', '/api/airports'], searchLimiter);
+
 //mount routes...
 app.use ('/api', flightRoutes);
 app.use('/api', hotelRoutes);
@@ -51,6 +71,7 @@ app.use('/api', paymentRoutes);
 const start = async () => {
     await connectDB();
     startRateRefreshSchedule();
+    startPaymentReconciliationSchedule();
 
     const server = app.listen(PORT, () => {
         console.log(`Server listening on port ${PORT}`);
@@ -67,6 +88,8 @@ const start = async () => {
             console.error('Forced exit after timeout');
             process.exit(1);
         }, 10_000).unref();
+
+        stopPaymentReconciliationSchedule();
 
         server.close(async (err) => {
             try {

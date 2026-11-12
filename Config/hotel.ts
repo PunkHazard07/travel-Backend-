@@ -14,7 +14,10 @@ export const liteApiConfig = {
 
 export const fetchHotelsFromAPI = (countryCode: string, cityName: string, limit = 60): Promise<any> => {
     return new Promise((resolve, reject) => {
-    const url = `${liteApiConfig.baseUrl}${liteApiConfig.endpoint.hotels}?countryCode=${countryCode}&cityName=${cityName}&limit=${limit}`;
+    const url = new URL(`${liteApiConfig.baseUrl}${liteApiConfig.endpoint.hotels}`);
+        url.searchParams.set("countryCode", countryCode)
+        url.searchParams.set("cityName", cityName)
+        url.searchParams.set("limit", String(limit))
 
         const options: https.RequestOptions = {
             headers: {
@@ -24,7 +27,7 @@ export const fetchHotelsFromAPI = (countryCode: string, cityName: string, limit 
             },
         };
 
-        https.get(url, options, (res) => {
+        https.get(url, options,  (res) => {
             let data = '';
 
             res.on('data', (chunk) => {
@@ -69,7 +72,7 @@ export const fetchHotelRates = (params: HotelRatesParams): Promise<any> => {
                 checkin: params.checkin,
                 checkout: params.checkout,
                 currency: params.currency ?? "NGN",
-                guestNationality: params.guestNationality ?? "US",
+                guestNationality: params.guestNationality,
                 occupancies: [{ adults: params.adults ?? 2 }],
             };
 

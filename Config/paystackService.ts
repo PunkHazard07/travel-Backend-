@@ -13,6 +13,8 @@ interface InitializePaymentResult {
 
 interface VerifyPaymentResult {
     success: boolean;
+    status: string;
+    gatewayResponse: string | null;
     amount: number;
     reference: string;
     paidAt: string;
@@ -31,7 +33,7 @@ export const paystackService = {
     async initializePayment(
         email: string,
         amount: number,
-        bookingReference: string,
+        reference: string,
         metadata: Record<string, any> = {}
     ): Promise<InitializePaymentResult> {
         try {
@@ -40,12 +42,9 @@ export const paystackService = {
                 {
                     email,
                     amount: Math.round(amount * 100), // Convert to kobo/cents
-                    reference: bookingReference,
+                    reference,
                     callback_url: `${process.env.VITE_FRONTEND_URL}/payment/callback`,
-                    metadata: {
-                        bookingReference,
-                        ...metadata,
-                    },
+                    metadata
                 },
                 {
                     headers: {
@@ -85,6 +84,8 @@ export const paystackService = {
 
             return {
                 success: data.status === "success",
+                status: data.status,
+                gatewayResponse: data.gatewayResponse ?? null,
                 amount: data.amount / 100, // Convert from kobo/cents
                 reference: data.reference,
                 paidAt: data.paid_at,

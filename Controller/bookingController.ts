@@ -5,8 +5,6 @@ import { mapDuffelFlightOffer } from "../utils/mapper.js";
 import { validateHotelBookingInput } from "../utils/hotelBooking.js";
 import { collectServicePrices, computeFlightTotal, FlightPriceError } from "../utils/flightPricing.js";
 
-// Created on first use rather than at import, so a missing DUFFEL_KEY gives a
-// clean 503 from this route instead of crashing the whole server at boot.
 let duffelService: any = null;
 const getDuffel = (): any => {
     if (!duffelService) duffelService = new DuffelService();

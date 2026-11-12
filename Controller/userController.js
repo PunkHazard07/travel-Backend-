@@ -15,10 +15,21 @@ export const register = async (req, res) => {
     const { fullName, email, password, phone } = req.body;
 
     //valdation
+    if ([fullName, email, password].some((v) => v !== undefined && typeof v !== "string")) {
+      return res.status(400).json({ success: false, message: "Invalid input" });
+    }
+
     if (!fullName || !email || !password) {
       return res.status(400).json({
         success: false,
         message: "Full name, email and password are required",
+      });
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters"
       });
     }
 
@@ -57,9 +68,15 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.error("Register Error:", error);
+    if (error?.code === 11000) {
+      return res.status(400).json({ success: false, message: "User alrady exists with this email"});
+    }
+    if ( error?.name === "ValidationError") {
+      return res.status(400).json({ success: false, message: "Invalid registration details"});
+    }
     res.status(500).json({
       success: false,
-      message: error.message || "Server Error",
+      message: "Server Error",
     });
   }
 };
@@ -70,7 +87,7 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
 
     //validation
-    if (!email || !password) {
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
       return res.status(400).json({
         success: false,
         message: "Email and password are required",
@@ -116,7 +133,7 @@ export const login = async (req, res) => {
     console.error("Login Error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Server Error",
+      message: "Server Error",
     });
   }
 };
@@ -231,7 +248,7 @@ export const deleteUserAccount = async (req, res) => {
     console.error("Delete User Account Error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to delete user account",
+      message: "Failed to delete user account",
     });
   }
 };
