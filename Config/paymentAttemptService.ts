@@ -143,6 +143,44 @@ export const paymentAttemptService = {
         );
     },
 
+    // We stopped waiting on this attempt (unpaid past our time limit). Guarded to
+    // pending only, so it can never overwrite a payment that landed a moment ago.
+    // Paystack may still accept money on the old link; a late success is still
+    // recorded because success may overwrite expired (see decideTransition).
+    async expire(attemptId: any): Promise<PaymentAttemptDocument | null> {
+        return PaymentAttempt.findOneAndUpdate(
+            { _id: attemptId, status: "pending" },
+            {
+                $set: {
+                    ...attemptStatusFields("expired"),
+                    failureReason: "expired_unpaid",
+                    resolvedBy: "reconcile",
+                    verifiedAt: new Date(),
+                },
+            },
+            { new: true }
+        );
+    },
+
+    // Attempts the sweep should look at, oldest first:
+    //  - initiating ones older than initiatingBefore (the link never reached the customer)
+    //  - pending/unknown ones older than recheckBefore that we haven't checked since then
+    async findStaleAttempts(options: {initiatingBefore: Date; recheckBefore: Date; limit: number; }): Promise<PaymentAttemptDocument[]> {
+        return PaymentAttempt.find({
+            isActive: true,
+            $or: [
+                { status: "initiating", createdAt: { $lt: options.initiatingBefore } },
+                {
+                    status: { $in: ["pending", "unknown"] },
+                    createdAt: { $lt: options.recheckBefore },
+                    $or: [{ lastCheckedAt: null }, { lastCheckedAt: { $lt: options.recheckBefore } }],
+                },
+            ],
+        })
+        .sort({ createdAt: 1 })
+        .limit(options.limit);
+    },  
+
     // Money arrived on this attempt, but the booking was already settled by a
     // different one. Refund is a manual step for now; this makes it findable.
     async flagDuplicatePayment(attemptId: any): Promise<void> {

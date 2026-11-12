@@ -8,9 +8,8 @@ import {
 } from "../Controller/flightController.js";
 
 const router = express.Router();
-//search flights route
 /**
- * @route   GET /api/flights/search
+ * @route   POST/api/flights/search
  * @desc    Search for flight offers
  * @access  Public
  */

@@ -14,13 +14,24 @@ import bookingRoutes from './Routes/bookingRoutes.js'
 import currencyRoutes from './Routes/currencyRoutes.js'
 import paymentRoutes from  './Routes/paymentRoutes.js'
 import { startRateRefreshSchedule } from './utils/currencyConverter.js'
+import { startPaymentReconciliationSchedule, stopPaymentReconciliationSchedule } from "./Config/paymentReconciliation.js";
 import { buildCorsOptions } from "./utils/cors.js";
 import { rateLimit } from "./utils/rateLimit.js";
 
 const PORT = process.env.PORT 
 const app = express();
 
-if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
+const trustProxyHops = process.env.TRUST_PROXY?.trim();
+
+if (trustProxyHops) {
+    const hops = Number(trustProxyHops);
+
+    if (!Number.isSafeInteger(hops) || hops < 0) {
+        throw new Error("TRUST_PROXY must be a non-negative safe integer");
+    }
+
+    app.set("trust proxy", hops);
+}
 
 //....Middleware....
 app.use(cors(buildCorsOptions()));
@@ -60,6 +71,7 @@ app.use('/api', paymentRoutes);
 const start = async () => {
     await connectDB();
     startRateRefreshSchedule();
+    startPaymentReconciliationSchedule();
 
     const server = app.listen(PORT, () => {
         console.log(`Server listening on port ${PORT}`);
@@ -76,6 +88,8 @@ const start = async () => {
             console.error('Forced exit after timeout');
             process.exit(1);
         }, 10_000).unref();
+
+        stopPaymentReconciliationSchedule();
 
         server.close(async (err) => {
             try {

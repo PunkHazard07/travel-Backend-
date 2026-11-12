@@ -56,8 +56,9 @@ export const deriveRate = (rates: Record<string, number>, from: string, to: stri
     return toRate / fromRate;
 };
 
-// TODO: Wire cached NGN-based display rates to the frontend currency selector.
-// Frontend handles display conversion; hotel/flight source prices remain NGN.
+// TODO: Connect the existing /currency/rates endpoint
+// to the frontend currency selector.
+// This table is USD-based; use deriveRate() for cross-currency conversion.
 export const getDisplayRates = async (): Promise<ExchangeRateTable> => {
     if (!cachedTable) {
         cachedTable = await fetchRateTable(DISPLAY_TABLE_BASE);

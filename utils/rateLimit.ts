@@ -6,7 +6,7 @@ interface Options {
     message?: string;
 }
 
-export const rateLimit = ({ windowMs, max, message = "oo many requests, please try again later."}: Options) => {
+export const rateLimit = ({ windowMs, max, message = "Too many requests, please try again later."}: Options) => {
     const hits = new Map<string, { count: number; resetAt: number }>();
 
     const sweep = setInterval(() => {
