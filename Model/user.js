@@ -19,6 +19,19 @@ const userSchema = new mongoose.Schema({
   phone: {
     type: String,
   },
+  accountStatus: {
+  type: String,
+  enum: ["active", "deletion_pending", "deleted"],
+  default: "active",
+},
+deletionRequestedAt: {
+  type: Date,
+  default: null,
+},
+deletionCompletedAt: {
+  type: Date,
+  default: null,
+},
   createdAt: {
     type: Date,
     default: Date.now,

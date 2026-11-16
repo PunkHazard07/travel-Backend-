@@ -238,7 +238,10 @@ export const deleteUserAccount = async (req, res) => {
       });
     }
 
-    await User.findByIdAndDelete(userId);
+    user.accountStatus = "deletion_pending";
+    user.deletionRequestedAt = new Date();
+
+    await user.save();
 
     res.status(200).json({
       success: true,
