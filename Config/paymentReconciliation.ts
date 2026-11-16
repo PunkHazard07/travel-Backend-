@@ -3,8 +3,10 @@ import type { PaymentAttemptDocument } from "../Model/paymentAttempt.js";
 import { paystackService } from "./paystackService.js";
 import { paymentAttemptService } from "./paymentAttemptService.js";
 import { settleAttemptPayment, toOutcomeInput, type VerifiedPayment } from "./paymentSettlement.js";
+import { PaystackError } from "../utils/paystackErrors.js";
 import {
     ATTEMPT_RECHECK_INTERVAL_MS,
+    EXPIRED_RECHECK_WINDOW_MS,
     INITIATING_ATTEMPT_MAX_AGE_MS,
     RECONCILE_BATCH_SIZE,
     RECONCILE_INTERVAL_MS,
@@ -17,6 +19,7 @@ export type ReconcileAction =
     | "settled"                  // Paystack says paid: booking settled, attempt recorded
     | "closed_failed"            // attempt closed as failed
     | "expired"                  // unpaid past our limit: closed so a new attempt is allowed
+    | "expired_rechecked"        // already-expired attempt checked again; still unpaid
     | "still_pending"            // still open, not old enough to close
     | "needs_review"             // unknown / reversed: left for a person
     | "verification_unavailable" // Paystack couldn't be reached: nothing changed
@@ -32,6 +35,7 @@ const emptyCounts = (): Record<ReconcileAction, number> => ({
     settled: 0,
     closed_failed: 0,
     expired: 0,
+    expired_rechecked: 0,
     still_pending: 0,
     needs_review: 0,
     verification_unavailable: 0,
@@ -40,21 +44,31 @@ const emptyCounts = (): Record<ReconcileAction, number> => ({
 
 // Handles ONE attempt. Never closes anything it could not check first.
 export const reconcileAttempt = async (attempt: PaymentAttemptDocument, now: Date = new Date()): Promise<ReconcileAction> => {
-    //The customer was never given a link, so nobody can pay this one. Safe to close.
-    if (attempt.status === "initiating") {
-        if (!isInitiatingAttemptStale(attempt, now)) return "skipped";
-        await paymentAttemptService.markInitializationFailed(attempt._id, "stale_initiating");
-        return "closed_failed";
-    }
+    const isInitiating = attempt.status === "initiating";
+    const isExpired = attempt.status === "expired";
+    
+    if (isInitiating && !isInitiatingAttemptStale(attempt, now)) return "skipped";
 
     //pending or unknown: ask Paystack first.
     let verification: VerifiedPayment;
     try {
         verification = await paystackService.verifyPayment(attempt.reference);
     } catch (verifyError) {
-        console.error(`Reconcile: could not verify ${attempt.reference}:`, verifyError);
-        // Note that we looked (so we don't hammer Paystack), but change no status.
+        const referenceNotFound = verifyError instanceof PaystackError && verifyError.kind === "not_found";
+        
+         // Paystack has never heard of this reference. For an initiating attempt that
+        // is the proof we needed: no transaction exists, so nobody can pay. Close it.
+        if (isInitiating && referenceNotFound) {
+            await paymentAttemptService.markInitializationFailed(attempt._id, "never_created_at_paystack");
+            return "closed_failed";
+    }
+
+    console.error(`Reconcile: could not verify ${attempt.reference}:`, verifyError);
+
+    // Note that we looked (so we don't hammer Paystack), but change no status.
         await paymentAttemptService.recordOutcome(attempt.reference, { providerStatus: null }, "reconcile");
+
+        if (referenceNotFound) return "needs_review"; // a link was issued yet Paystack has no record
         return "verification_unavailable";
     }
 
@@ -69,6 +83,21 @@ export const reconcileAttempt = async (attempt: PaymentAttemptDocument, now: Dat
         }
         await settleAttemptPayment(booking, attempt, verification, "reconcile");
         return "settled";
+    }
+
+    //already expired and still unpaid: Just note that we checked 
+    if (isExpired) {
+        await paymentAttemptService.recordOutcome(attempt.reference, toOutcomeInput(verification), "reconcile");
+        return "expired_rechecked";
+    }
+
+    // Initiating attempt that Paystack does know about but nobody was given the
+    // link for (our request timed out): nobody can pay it, so close it.
+    if (isInitiating) {
+        const outcome = await paymentAttemptService.recordOutcome(attempt.reference, toOutcomeInput(verification), "reconcile");
+        if (outcome.attempt?.status === "failed") return "closed_failed";
+        await paymentAttemptService.markInitializationFailed(attempt._id, "link_never_delivered");
+        return "closed_failed";
     }
 
     const outcome = await paymentAttemptService.recordOutcome(attempt.reference, toOutcomeInput(verification), "reconcile");
@@ -94,6 +123,7 @@ export const reconcileStaleAttempts = async (now: Date = new Date()): Promise<Re
     const attempts = await paymentAttemptService.findStaleAttempts({
         initiatingBefore: new Date(now.getTime() - INITIATING_ATTEMPT_MAX_AGE_MS),
         recheckBefore: new Date(now.getTime() - ATTEMPT_RECHECK_INTERVAL_MS),
+        expiredAfter: new Date(now.getTime() - EXPIRED_RECHECK_WINDOW_MS),
         limit: RECONCILE_BATCH_SIZE,
     });
 
@@ -116,6 +146,7 @@ let running = false;
 
 export const startPaymentReconciliationSchedule = (): void => {
     if (reconcileTimer) return;
+    console.log(`Payment reconciliation schedule started (every ${RECONCILE_INTERVAL_MS / 60000} min)`);
 
     reconcileTimer = setInterval(() => {
         if (running) return;

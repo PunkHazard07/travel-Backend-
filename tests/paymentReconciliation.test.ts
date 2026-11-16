@@ -9,6 +9,8 @@ const flagDuplicatePayment = jest.fn<(...args: any[]) => Promise<any>>();
 const findStaleAttempts = jest.fn<(...args: any[]) => Promise<any[]>>();
 const settleAttemptPayment = jest.fn<(...args: any[]) => Promise<any>>();
 
+const { PaystackError } = await import("../utils/paystackErrors.js");
+
 jest.unstable_mockModule("../Model/booking.js", () => ({
     __esModule: true,
     default: { findById: bookingFindById },
@@ -177,14 +179,49 @@ describe("reconcileAttempt: pending", () => {
 });
 
 describe("reconcileAttempt: initiating and unknown", () => {
-    it("stale initiating (customer never got a link): closes as failed without calling Paystack", async () => {
+    it("stale initiating that Paystack has never heard of: closes as failed", async () => {
         const attempt = makeAttempt("initiating", 15);
+        paystackVerify.mockRejectedValue(new PaystackError("Transaction reference not found", "not_found", 404));
 
         const action = await reconcileAttempt(attempt as any, NOW);
 
         expect(action).toBe("closed_failed");
-        expect(markInitializationFailed).toHaveBeenCalledWith(attempt._id, "stale_initiating");
-        expect(paystackVerify).not.toHaveBeenCalled();
+        expect(markInitializationFailed).toHaveBeenCalledWith(attempt._id, "never_created_at_paystack");
+    });
+
+    it("stale initiating that actually got paid (the response was lost): settles instead of closing", async () => {
+        const attempt = makeAttempt("initiating", 15);
+        paystackVerify.mockResolvedValue(makeVerification("success"));
+        bookingFindById.mockResolvedValue({ _id: "booking-1" });
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("settled");
+        expect(markInitializationFailed).not.toHaveBeenCalled();
+    });
+
+    it("stale initiating that exists at Paystack but nobody got the link: closes it", async () => {
+        const attempt = makeAttempt("initiating", 15);
+        paystackVerify.mockResolvedValue(makeVerification("abandoned"));
+        recordOutcome.mockResolvedValue({ found: true, applied: true, attempt: { ...attempt, status: "pending" } });
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("closed_failed");
+        expect(markInitializationFailed).toHaveBeenCalledWith(attempt._id, "link_never_delivered");
+    });
+
+    it("stale initiating while Paystack is unreachable: changes nothing", async () => {
+        const attempt = makeAttempt("initiating", 15);
+        paystackVerify.mockRejectedValue(new PaystackError("timeout", "unavailable", null));
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("verification_unavailable");
+        expect(markInitializationFailed).not.toHaveBeenCalled();
+    });
+
+    it("pending attempt Paystack has no record of: left for a person, never closed", async () => {
+        const attempt = makeAttempt("pending", 30);
+        paystackVerify.mockRejectedValue(new PaystackError("Transaction reference not found", "not_found", 404));
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("needs_review");
+        expect(markInitializationFailed).not.toHaveBeenCalled();
+        expect(expire).not.toHaveBeenCalled();
     });
 
     it("recent initiating: another request is probably mid-setup, so leave it", async () => {
@@ -225,6 +262,7 @@ describe("reconcileStaleAttempts", () => {
         const options = findStaleAttempts.mock.calls[0][0];
         expect(options.initiatingBefore).toEqual(new Date(NOW.getTime() - policy.INITIATING_ATTEMPT_MAX_AGE_MS));
         expect(options.recheckBefore).toEqual(new Date(NOW.getTime() - policy.ATTEMPT_RECHECK_INTERVAL_MS));
+        expect(options.expiredAfter).toEqual(new Date(NOW.getTime() - policy.EXPIRED_RECHECK_WINDOW_MS));
         expect(options.limit).toBe(policy.RECONCILE_BATCH_SIZE);
     });
 
@@ -234,9 +272,11 @@ describe("reconcileStaleAttempts", () => {
         const stale = makeAttempt("initiating", 15);
         findStaleAttempts.mockResolvedValue([paid, waiting, stale]);
 
-        paystackVerify.mockImplementation(async (reference: string) =>
-            reference === paid.reference ? makeVerification("success") : makeVerification("abandoned")
-        );
+        paystackVerify.mockImplementation(async (reference: string) => {
+            if (reference === paid.reference) return makeVerification("success");
+            if (reference === stale.reference) throw new PaystackError("not found", "not_found", 404);
+            return makeVerification("abandoned");
+        });
         bookingFindById.mockResolvedValue({ _id: "booking-1" });
         settleAttemptPayment.mockRejectedValue(new Error("database hiccup"));
         recordOutcome.mockResolvedValue({ found: true, applied: true, attempt: waiting });
@@ -247,7 +287,40 @@ describe("reconcileStaleAttempts", () => {
         expect(summary.counts.error).toBe(1);
         expect(summary.counts.still_pending).toBe(1);
         expect(summary.counts.closed_failed).toBe(1);
-        expect(markInitializationFailed).toHaveBeenCalledWith(stale._id, "stale_initiating");
+        expect(markInitializationFailed).toHaveBeenCalledWith(stale._id, "never_created_at_paystack");
+    });
+});
+
+describe("reconcileAttempt: expired", () => {
+    it("expired attempt that was paid after all: settles it", async () => {
+        const attempt = makeAttempt("expired", 120);
+        paystackVerify.mockResolvedValue(makeVerification("success"));
+        bookingFindById.mockResolvedValue({ _id: "booking-1" });
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("settled");
+        expect(settleAttemptPayment).toHaveBeenCalledTimes(1);
+    });
+
+    it("expired attempt still unpaid: only notes that it was checked", async () => {
+        const attempt = makeAttempt("expired", 120);
+        paystackVerify.mockResolvedValue(makeVerification("abandoned"));
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("expired_rechecked");
+        expect(expire).not.toHaveBeenCalled();
+        expect(markInitializationFailed).not.toHaveBeenCalled();
+    });
+
+    it("expired attempt while Paystack is unreachable: changes nothing", async () => {
+        const attempt = makeAttempt("expired", 120);
+        paystackVerify.mockRejectedValue(new PaystackError("timeout", "unavailable", null));
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("verification_unavailable");
+    });
+});
+
+describe("session timeout policy", () => {
+    it("Paystack's session timeout is shorter than our own expiry", () => {
+        expect(policy.PAYSTACK_SESSION_TIMEOUT_SECONDS * 1000).toBeLessThan(policy.PENDING_ATTEMPT_MAX_AGE_MS);
     });
 });
 

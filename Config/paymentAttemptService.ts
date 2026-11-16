@@ -79,6 +79,13 @@ export type ReserveAttemptResult = {
 
 const isDuplicateKeyError = (error: any): boolean => error?.code === 11000;
 
+const MAX_REFERENCE_TRIES = 3;
+
+// Mongo reports which index rejected the insert. If it was the unique index on
+// `reference`, it was a reference collision, not a one-active-attempt conflict.
+const isReferenceCollision = (error: any): boolean =>
+    Boolean(error?.keyPattern?.reference) || /index:\s*reference_1/.test(String(error?.message ?? ""));
+
 export const paymentAttemptService = {
     async getBlockingAttempts(bookingId: any): Promise<PaymentAttemptDocument[]> {
         return PaymentAttempt.find({
@@ -94,24 +101,26 @@ export const paymentAttemptService = {
     // Reserve the booking's single active attempt BEFORE calling Paystack.
     // The partial unique index (one_active_attempt_per_booking) lets exactly
     // one of several simultaneous requests succeed; the rest get conflict: true.
-    async reserve(input: ReserveAttemptInput): Promise<ReserveAttemptResult> {
-        try {
-            const attempt = await PaymentAttempt.create({
-                bookingId: input.bookingId,
-                userId: input.userId,
-                reference: generateAttemptReference(input.bookingReference),
-                amount: input.amount,
-                currency: input.currency,
-                currencyConversion: input.currencyConversion ?? undefined,
-                ...attemptStatusFields("initiating"),
-            });
-            return { conflict: false, attempt };
-        } catch (error) {
-            if (isDuplicateKeyError(error)) {
-                return { conflict: true, attempt: null };
+        async reserve(input: ReserveAttemptInput): Promise<ReserveAttemptResult> {
+        for (let tries = 0; tries < MAX_REFERENCE_TRIES; tries += 1) {
+            try {
+                const attempt = await PaymentAttempt.create({
+                    bookingId: input.bookingId,
+                    userId: input.userId,
+                    reference: generateAttemptReference(input.bookingReference),
+                    amount: input.amount,
+                    currency: input.currency,
+                    currencyConversion: input.currencyConversion ?? undefined,
+                    ...attemptStatusFields("initiating"),
+                });
+                return { conflict: false, attempt };
+            } catch (error) {
+                if (!isDuplicateKeyError(error)) throw error;
+                if (!isReferenceCollision(error)) return { conflict: true, attempt: null };
+                // reference collision: loop and generate a new one
             }
-            throw error;
         }
+        throw new Error("Could not generate a unique payment reference");
     },
 
     //initiate pending once paystack has issued the link. So it doesn't overwrite an attempt that's something else already resolved.
@@ -126,6 +135,16 @@ export const paymentAttemptService = {
                 },
             },
             { new: true }
+        );
+    },
+
+    // We could not tell whether Paystack created the transaction (timeout, 5xx).
+    // Status is left as "initiating" on purpose: the sweep will verify the
+    // reference and decide. This only records why, for support.
+    async noteInitializationUncertain(attemptId: any, reason: string): Promise<void> {
+        await PaymentAttempt.updateOne(
+            { _id: attemptId, status: "initiating" },
+            { $set: { failureReason: `initialization_unconfirmed: ${reason}`.slice(0, 300) } }
         );
     },
 
@@ -165,15 +184,22 @@ export const paymentAttemptService = {
     // Attempts the sweep should look at, oldest first:
     //  - initiating ones older than initiatingBefore (the link never reached the customer)
     //  - pending/unknown ones older than recheckBefore that we haven't checked since then
-    async findStaleAttempts(options: {initiatingBefore: Date; recheckBefore: Date; limit: number; }): Promise<PaymentAttemptDocument[]> {
+    async findStaleAttempts(options: {initiatingBefore: Date; recheckBefore: Date; expiredAfter: Date; limit: number; }): Promise<PaymentAttemptDocument[]> {
+        const notCheckedSince = [{ lastCheckedAt: null }, { lastCheckedAt: { $lt: options.recheckBefore } }];
+        
         return PaymentAttempt.find({
-            isActive: true,
             $or: [
-                { status: "initiating", createdAt: { $lt: options.initiatingBefore } },
+                { isActive: true, status: "initiating", createdAt: { $lt: options.initiatingBefore } },
                 {
+                    isActive: true,
                     status: { $in: ["pending", "unknown"] },
                     createdAt: { $lt: options.recheckBefore },
-                    $or: [{ lastCheckedAt: null }, { lastCheckedAt: { $lt: options.recheckBefore } }],
+                    $or: notCheckedSince,
+                },
+                {
+                    status: "expired",
+                    verifiedAt: { $gt: options.expiredAfter },
+                    $or: notCheckedSince,
                 },
             ],
         })

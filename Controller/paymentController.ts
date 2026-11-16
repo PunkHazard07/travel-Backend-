@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { bookingService, BookingError, type ProviderOutcome } from "../Config/bookingService.js";
+import { bookingService, BookingError } from "../Config/bookingService.js";
 import { paystackService } from "../Config/paystackService.js";
 import { paymentAttemptService } from "../Config/paymentAttemptService.js";
 import { SETTLEMENT_CURRENCY, settleAttemptPayment, toOutcomeInput, type VerifiedPayment } from "../Config/paymentSettlement.js";
@@ -8,6 +8,7 @@ import Booking, { type BookingDocument} from "../Model/booking.js";
 import type { PaymentAttemptDocument } from "../Model/paymentAttempt.js";
 import { checkPaymentEligibility } from "../utils/paymentEligibility.js";
 import { decideAttemptRetry } from "../utils/paymentAttemptEligibility.js";
+import { isAmbiguousPaystackError } from "../utils/paystackErrors.js";
 import { isPendingAttemptExpired } from "../utils/paymentAttemptPolicy.js";
 
 
@@ -141,18 +142,19 @@ export const initializePayment = async (req: Request, res: Response) => {
             }
 
             //still open at paystack (pending, ongoing, or abandoned can still be paid): hand back the same link instead of a second payment
-            if (current?.status === "pending" && isPendingAttemptExpired(current)) {
+            if (current?.status === "pending" && (isPendingAttemptExpired(current) || !current.authorizationUrl)) {
                 const expired = await paymentAttemptService.expire(current._id);
                 if (!expired) {
+                    // Something else resolved it a moment ago; let the customer retry.
                     return res.status(409).json({
                         success: false,
                         code: "PAYMENT_IN_PROGRESS",
                         message: "A payment is already being set up for this booking. Please try again in a moment.",
                     });
                 }
-
+                // fall through to a new attempt
             } else if (current?.status === "pending") {
-                 // Still open and recent: hand back the SAME link instead of a second payment.
+                // Still open and recent: hand back the SAME link instead of a second payment.
                 if (await rejectIfPrebookStale(booking, res)) return;
 
                 return res.status(200).json({
@@ -242,16 +244,38 @@ export const initializePayment = async (req: Request, res: Response) => {
                 }
             );
         } catch (initError: any) {
-            // Close the attempt so the customer isn't locked out of retrying.
+            if (isAmbiguousPaystackError(initError)) {
+                await paymentAttemptService.noteInitializationUncertain(attempt._id, initError.message);
+                return res.status(503).json({
+                    success: false,
+                    code: "PAYMENT_STATUS_UNCERTAIN",
+                    message: "We couldn't confirm the payment setup with our payment provider. Please wait a few minutes and try again.",
+                });
+            }
+
+            // Paystack clearly refused: nothing was created, so release the booking.
             await paymentAttemptService.markInitializationFailed(attempt._id, initError?.message ?? "unknown");
             throw initError;
         }
 
-        await paymentAttemptService.markPending(attempt._id, {
+        // If the attempt was resolved by something else while we waited, the link is
+        // not tied to a live attempt any more: don't hand it to the customer.
+        const pendingAttempt = await paymentAttemptService.markPending(attempt._id, {
             authorizationUrl: paymentData.authorizationUrl,
             accessCode: paymentData.accessCode,
         });
 
+        if (!pendingAttempt) {
+            return res.status(409).json({
+                success: false,
+                code: "PAYMENT_IN_PROGRESS",
+                message: "This payment attempt is no longer current. Please try again.",
+            });
+        }
+
+        // Keep the booking's payment summary pointing at the latest attempt.
+        // paymentStatus stays "unpaid": the attempt record holds the in-flight
+        // state. Conditional on unpaid so a concurrent settlement is never clobbered.
         const bookingUpdate: Record<string, any> = {
             $set: {
                 paymentReference: attempt.reference,
@@ -262,7 +286,6 @@ export const initializePayment = async (req: Request, res: Response) => {
                 ...(currencyConversion ? { currencyConversion } : {}),
             },
         };
-        
         if (!currencyConversion) {
             bookingUpdate.$unset = { currencyConversion: "" };
         }
@@ -273,9 +296,9 @@ export const initializePayment = async (req: Request, res: Response) => {
             message: "Payment initialized successfully",
             data: {
                 authorizationUrl: paymentData.authorizationUrl,
-                reference: paymentData.reference,
+                reference: attempt.reference,
                 accessCode: paymentData.accessCode,
-                resumed: false
+                resumed: false,
             },
         });
     } catch (error: any) {
