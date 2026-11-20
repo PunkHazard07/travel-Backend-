@@ -9,7 +9,7 @@ import type { PaymentAttemptDocument } from "../Model/paymentAttempt.js";
 import { checkPaymentEligibility } from "../utils/paymentEligibility.js";
 import { decideAttemptRetry } from "../utils/paymentAttemptEligibility.js";
 import { isAmbiguousPaystackError } from "../utils/paystackErrors.js";
-import { isPendingAttemptExpired } from "../utils/paymentAttemptPolicy.js";
+// import { isPendingAttemptExpired } from "../utils/paymentAttemptPolicy.js";
 
 
 // Validates fresh hotel prebook pricing; stops if price changed for user confirmation, returning true if a response was sent.
@@ -98,7 +98,7 @@ export const initializePayment = async (req: Request, res: Response) => {
             //Ask Paystack what happened to the earlier attempt before doing anything.
             let verification: VerifiedPayment;
             try {
-                verification= await paystackService.verifyPayment(existing.reference);
+                verification = await paystackService.verifyPayment(existing.reference);
             } catch (verifyError) {
                 console.error(`Could not verify earlier attempt ${existing.reference}:`, verifyError);
                 return res.status(503).json({
@@ -141,32 +141,37 @@ export const initializePayment = async (req: Request, res: Response) => {
                 });
             }
 
-            //still open at paystack (pending, ongoing, or abandoned can still be paid): hand back the same link instead of a second payment
-            if (current?.status === "pending" && (isPendingAttemptExpired(current) || !current.authorizationUrl)) {
-                const expired = await paymentAttemptService.expire(current._id);
-                if (!expired) {
-                    // Something else resolved it a moment ago; let the customer retry.
-                    return res.status(409).json({
-                        success: false,
-                        code: "PAYMENT_IN_PROGRESS",
-                        message: "A payment is already being set up for this booking. Please try again in a moment.",
+            // Paystack still reports this attempt as open. It may still be payable,
+            // so it is never released just because it is old: only a final Paystack
+            // outcome (handled above) allows a new attempt.
+            if (current?.status === "pending") {
+                if (!current.authorizationUrl) {
+                    // The checkout link was lost when initialization timed out, so nobody
+                    // holds a link to this attempt and nobody can pay it. Safe to close.
+                    const closed = await paymentAttemptService.closeUnreachable(current._id);
+                    if (!closed) {
+                        return res.status(409).json({
+                            success: false,
+                            code: "PAYMENT_IN_PROGRESS",
+                            message: "A payment is already being resolved for this booking. Please try again shortly.",
+                        });
+                    }
+                    // fall through to a new attempt
+                } else {
+                    // Hand back the SAME link instead of a second payment.
+                    if (await rejectIfPrebookStale(booking, res)) return;
+
+                    return res.status(200).json({
+                        success: true,
+                        message: "Existing payment resumed",
+                        data: {
+                            authorizationUrl: current.authorizationUrl,
+                            reference: current.reference,
+                            accessCode: current.accessCode,
+                            resumed: true,
+                        },
                     });
                 }
-                // fall through to a new attempt
-            } else if (current?.status === "pending") {
-                // Still open and recent: hand back the SAME link instead of a second payment.
-                if (await rejectIfPrebookStale(booking, res)) return;
-
-                return res.status(200).json({
-                    success: true,
-                    message: "Existing payment resumed",
-                    data: {
-                        authorizationUrl: current.authorizationUrl,
-                        reference: current.reference,
-                        accessCode: current.accessCode,
-                        resumed: true,
-                    },
-                });
             }
             //earlier attempt is now failed: fall through and start a new one
         }

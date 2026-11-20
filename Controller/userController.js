@@ -242,6 +242,8 @@ export const deleteUserAccount = async (req, res) => {
     user.deletionRequestedAt = new Date();
 
     await user.save();
+    //not complete need to also determine what documents needs to be retained 
+    //partially fixed 
 
     res.status(200).json({
       success: true,

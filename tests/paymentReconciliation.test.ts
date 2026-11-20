@@ -7,6 +7,7 @@ const expire = jest.fn<(...args: any[]) => Promise<any>>();
 const markInitializationFailed = jest.fn<(...args: any[]) => Promise<any>>();
 const flagDuplicatePayment = jest.fn<(...args: any[]) => Promise<any>>();
 const findStaleAttempts = jest.fn<(...args: any[]) => Promise<any[]>>();
+const closeUnreachable = jest.fn<(...args: any[]) => Promise<any>>();
 const settleAttemptPayment = jest.fn<(...args: any[]) => Promise<any>>();
 
 const { PaystackError } = await import("../utils/paystackErrors.js");
@@ -23,6 +24,7 @@ jest.unstable_mockModule("../Config/paymentAttemptService.js", () => ({
         recordOutcome,
         expire,
         markInitializationFailed,
+        closeUnreachable,
         flagDuplicatePayment,
         findStaleAttempts,
     },
@@ -49,6 +51,7 @@ const makeAttempt = (status: string, ageMinutes: number, overrides: Record<strin
     bookingId: "booking-1",
     reference: `BK-TEST-${status.toUpperCase()}-${ageMinutes}`,
     status,
+    authorizationUrl: "https://paystack.test/link",
     createdAt: minutesAgo(ageMinutes),
     ...overrides,
 });
@@ -120,16 +123,16 @@ describe("reconcileAttempt: pending", () => {
         expect(expire).not.toHaveBeenCalled();
     });
 
-    it("unpaid and older than the limit: expires it after checking", async () => {
+    it("unpaid and older than our time limit but still open at Paystack: stays pending, never released", async () => {
         const attempt = makeAttempt("pending", 120);
         paystackVerify.mockResolvedValue(makeVerification("abandoned"));
         recordOutcome.mockResolvedValue({ found: true, applied: true, attempt });
 
         const action = await reconcileAttempt(attempt as any, NOW);
 
-        expect(action).toBe("expired");
+        expect(action).toBe("still_pending");
         expect(paystackVerify).toHaveBeenCalledWith(attempt.reference);
-        expect(expire).toHaveBeenCalledWith(attempt._id);
+        expect(expire).not.toHaveBeenCalled();
     });
 
     it("unpaid but still within the limit: leaves it pending", async () => {
@@ -155,15 +158,6 @@ describe("reconcileAttempt: pending", () => {
         expect(settleAttemptPayment).not.toHaveBeenCalled();
     });
 
-    it("expiry loses the race to a payment that just landed: reports skipped", async () => {
-        const attempt = makeAttempt("pending", 120);
-        paystackVerify.mockResolvedValue(makeVerification("abandoned"));
-        recordOutcome.mockResolvedValue({ found: true, applied: true, attempt });
-        expire.mockResolvedValue(null);
-
-        expect(await reconcileAttempt(attempt as any, NOW)).toBe("skipped");
-    });
-
     it("paid, but the booking no longer exists: records it and flags for a person", async () => {
         const attempt = makeAttempt("pending", 20);
         paystackVerify.mockResolvedValue(makeVerification("success"));
@@ -180,17 +174,17 @@ describe("reconcileAttempt: pending", () => {
 
 describe("reconcileAttempt: initiating and unknown", () => {
     it("stale initiating that Paystack has never heard of: closes as failed", async () => {
-        const attempt = makeAttempt("initiating", 15);
+        const attempt = makeAttempt("initiating", 15, { authorizationUrl: null });
         paystackVerify.mockRejectedValue(new PaystackError("Transaction reference not found", "not_found", 404));
 
         const action = await reconcileAttempt(attempt as any, NOW);
 
         expect(action).toBe("closed_failed");
-        expect(markInitializationFailed).toHaveBeenCalledWith(attempt._id, "never_created_at_paystack");
+        expect(markInitializationFailed).toHaveBeenCalledWith(attempt._id, "paystack_reference_not_found");
     });
 
     it("stale initiating that actually got paid (the response was lost): settles instead of closing", async () => {
-        const attempt = makeAttempt("initiating", 15);
+        const attempt = makeAttempt("initiating", 15, { authorizationUrl: null });
         paystackVerify.mockResolvedValue(makeVerification("success"));
         bookingFindById.mockResolvedValue({ _id: "booking-1" });
 
@@ -199,12 +193,19 @@ describe("reconcileAttempt: initiating and unknown", () => {
     });
 
     it("stale initiating that exists at Paystack but nobody got the link: closes it", async () => {
-        const attempt = makeAttempt("initiating", 15);
+        const attempt = makeAttempt("initiating", 15, { authorizationUrl: null });
         paystackVerify.mockResolvedValue(makeVerification("abandoned"));
-        recordOutcome.mockResolvedValue({ found: true, applied: true, attempt: { ...attempt, status: "pending" } });
 
         expect(await reconcileAttempt(attempt as any, NOW)).toBe("closed_failed");
-        expect(markInitializationFailed).toHaveBeenCalledWith(attempt._id, "link_never_delivered");
+        expect(closeUnreachable).toHaveBeenCalledWith(attempt._id);
+    });
+
+    it("pending attempt that somehow has no link: closes it too", async () => {
+        const attempt = makeAttempt("pending", 30, { authorizationUrl: null });
+        paystackVerify.mockResolvedValue(makeVerification("abandoned"));
+
+        expect(await reconcileAttempt(attempt as any, NOW)).toBe("closed_failed");
+        expect(closeUnreachable).toHaveBeenCalledWith(attempt._id);
     });
 
     it("stale initiating while Paystack is unreachable: changes nothing", async () => {
@@ -269,7 +270,7 @@ describe("reconcileStaleAttempts", () => {
     it("one failing attempt does not stop the rest, and the summary counts everything", async () => {
         const paid = makeAttempt("pending", 30);
         const waiting = makeAttempt("pending", 20);
-        const stale = makeAttempt("initiating", 15);
+        const stale = makeAttempt("initiating", 15, { authorizationUrl: null });
         findStaleAttempts.mockResolvedValue([paid, waiting, stale]);
 
         paystackVerify.mockImplementation(async (reference: string) => {
@@ -287,7 +288,7 @@ describe("reconcileStaleAttempts", () => {
         expect(summary.counts.error).toBe(1);
         expect(summary.counts.still_pending).toBe(1);
         expect(summary.counts.closed_failed).toBe(1);
-        expect(markInitializationFailed).toHaveBeenCalledWith(stale._id, "never_created_at_paystack");
+        expect(markInitializationFailed).toHaveBeenCalledWith(stale._id, "paystack_reference_not_found");
     });
 });
 

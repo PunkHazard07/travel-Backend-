@@ -128,6 +128,20 @@ describe("noteInitializationUncertain", () => {
     });
 });
 
+describe("closeUnreachable", () => {
+    it("closes only an attempt that has no checkout link, as failed and inactive", async () => {
+        findOneAndUpdate.mockResolvedValue({ status: "failed" });
+
+        await paymentAttemptService.closeUnreachable("attempt-1");
+
+        const [filter, update] = findOneAndUpdate.mock.calls[0];
+        expect(filter).toEqual({ _id: "attempt-1", status: { $in: ["initiating", "pending"] }, authorizationUrl: null });
+        expect(update.$set).toEqual(
+            expect.objectContaining({ status: "failed", isActive: false, failureReason: "link_never_delivered" })
+        );
+    });
+});
+
 describe("expire", () => {
     it("only expires an attempt that is still pending, and closes it", async () => {
         findOneAndUpdate.mockResolvedValue({ status: "expired" });

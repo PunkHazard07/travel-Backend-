@@ -148,6 +148,23 @@ export const paymentAttemptService = {
         );
     },
 
+    // The attempt has no checkout link, so nobody can ever pay it (the initialize
+    // response was lost). Safe to close even if Paystack knows the reference.
+    // Guarded on "no link yet" so it can never close an attempt a customer holds.
+    async closeUnreachable(attemptId: any): Promise<PaymentAttemptDocument | null> {
+        return PaymentAttempt.findOneAndUpdate(
+            { _id: attemptId, status: { $in: ["initiating", "pending"] }, authorizationUrl: null },
+            {
+                $set: {
+                    ...attemptStatusFields("failed"),
+                    failureReason: "link_never_delivered",
+                    verifiedAt: new Date(),
+                },
+            },
+            { new: true }
+        );
+    },
+
     //paystack refused to initialise: close the attempt so the customer can retry.
     async markInitializationFailed(attemptId: any, reason: string): Promise<void> {
         await PaymentAttempt.updateOne(

@@ -19,6 +19,7 @@ const markPending = jest.fn<(...args: any[]) => Promise<any>>();
 const markInitializationFailed = jest.fn<(...args: any[]) => Promise<any>>();
 const recordOutcome = jest.fn<(...args: any[]) => Promise<any>>();
 const expire = jest.fn<(...args: any[]) => Promise<any>>();
+const closeUnreachable = jest.fn<(...args: any[]) => Promise<any>>();
 const findByReference = jest.fn<(...args: any[]) => Promise<any>>();
 const flagDuplicatePayment = jest.fn<(...args: any[]) => Promise<any>>();
 
@@ -61,6 +62,7 @@ jest.unstable_mockModule("../Config/paymentAttemptService.js", () => ({
         markInitializationFailed,
         recordOutcome,
         expire,
+        closeUnreachable,
         findByReference,
         flagDuplicatePayment,
     },
@@ -264,7 +266,7 @@ describe("initializePayment attempts", () => {
         expect(convertForCheckout).not.toHaveBeenCalled();
     });
 
-    it("expired attempt (unpaid past the limit): closes it after checking and starts a new one", async () => {
+    it("old pending attempt still open at Paystack is resumed with the same link, never released by age", async () => {
         const old = makeAttempt("pending", { createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) });
         getBlockingAttempts.mockResolvedValue([old]);
         paystackVerify.mockResolvedValue(makeVerification("abandoned"));
@@ -273,13 +275,40 @@ describe("initializePayment attempts", () => {
 
         await initializePayment(initReq(), res);
 
-        expect(paystackVerify).toHaveBeenCalledWith(OLD_REF);
-        expect(expire).toHaveBeenCalledWith(old._id);
+        expect(expire).not.toHaveBeenCalled();
+        expect(reserve).not.toHaveBeenCalled();
+        expect(body(res).data.resumed).toBe(true);
+        expect(body(res).data.authorizationUrl).toBe("https://paystack.test/old-link");
+    });
+
+    it("pending attempt with no checkout link: closes it (nobody can pay it) and starts a new one", async () => {
+        const linkless = makeAttempt("pending", { authorizationUrl: null, accessCode: null });
+        getBlockingAttempts.mockResolvedValue([linkless]);
+        paystackVerify.mockResolvedValue(makeVerification("abandoned"));
+        recordOutcome.mockResolvedValue({ found: true, applied: true, attempt: linkless });
+        closeUnreachable.mockResolvedValue({ ...linkless, status: "failed" });
+        const res = makeRes();
+
+        await initializePayment(initReq(), res);
+
+        expect(closeUnreachable).toHaveBeenCalledWith(linkless._id);
         expect(reserve).toHaveBeenCalledTimes(1);
-        expect(paystackInitialize).toHaveBeenCalledTimes(1);
-        expect(res.status).toHaveBeenCalledWith(200);
         expect(body(res).data.resumed).toBe(false);
-        expect(body(res).data.reference).toBe(NEW_REF);
+    });
+
+    it("linkless attempt that was resolved meanwhile: asks the customer to retry", async () => {
+        const linkless = makeAttempt("pending", { authorizationUrl: null, accessCode: null });
+        getBlockingAttempts.mockResolvedValue([linkless]);
+        paystackVerify.mockResolvedValue(makeVerification("abandoned"));
+        recordOutcome.mockResolvedValue({ found: true, applied: true, attempt: linkless });
+        closeUnreachable.mockResolvedValue(null);
+        const res = makeRes();
+
+        await initializePayment(initReq(), res);
+
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(body(res).code).toBe("PAYMENT_IN_PROGRESS");
+        expect(reserve).not.toHaveBeenCalled();
     });
 
     it("recent pending attempt is resumed, not expired", async () => {
@@ -314,22 +343,6 @@ describe("initializePayment attempts", () => {
         expect(res.status).toHaveBeenCalledWith(409);
         expect(body(res).code).toBe("ALREADY_PAID");
         expect(reserve).not.toHaveBeenCalled();
-    });
-
-    it("expiry loses a race to a payment that just landed: asks the customer to retry", async () => {
-        const old = makeAttempt("pending", { createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) });
-        getBlockingAttempts.mockResolvedValue([old]);
-        paystackVerify.mockResolvedValue(makeVerification("abandoned"));
-        recordOutcome.mockResolvedValue({ found: true, applied: true, attempt: old });
-        expire.mockResolvedValue(null);
-        const res = makeRes();
-
-        await initializePayment(initReq(), res);
-
-        expect(res.status).toHaveBeenCalledWith(409);
-        expect(body(res).code).toBe("PAYMENT_IN_PROGRESS");
-        expect(reserve).not.toHaveBeenCalled();
-        expect(paystackInitialize).not.toHaveBeenCalled();
     });
 
     it("retry after successful payment is rejected without any external call", async () => {
