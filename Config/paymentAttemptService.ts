@@ -69,6 +69,8 @@ export type ReserveAttemptInput = {
         originalAmount: number;
         convertedAmount: number;
     } | null;
+    quotedTotal?: number;
+    quotedCurrency?: string;
 };
 
 export type ReserveAttemptResult = {
@@ -111,6 +113,8 @@ export const paymentAttemptService = {
                     amount: input.amount,
                     currency: input.currency,
                     currencyConversion: input.currencyConversion ?? undefined,
+                    ...(input.quotedTotal !== undefined ? { quotedTotal: input.quotedTotal } : {}),
+                    ...(input.quotedCurrency !== undefined ? { quotedCurrency: input.quotedCurrency } : {}),
                     ...attemptStatusFields("initiating"),
                 });
                 return { conflict: false, attempt };
@@ -183,13 +187,13 @@ export const paymentAttemptService = {
     // pending only, so it can never overwrite a payment that landed a moment ago.
     // Paystack may still accept money on the old link; a late success is still
     // recorded because success may overwrite expired (see decideTransition).
-    async expire(attemptId: any): Promise<PaymentAttemptDocument | null> {
+    async expire(attemptId: any, reason: string = "expired_unpaid"): Promise<PaymentAttemptDocument | null> {
         return PaymentAttempt.findOneAndUpdate(
             { _id: attemptId, status: "pending" },
             {
                 $set: {
                     ...attemptStatusFields("expired"),
-                    failureReason: "expired_unpaid",
+                    failureReason: reason,
                     resolvedBy: "reconcile",
                     verifiedAt: new Date(),
                 },

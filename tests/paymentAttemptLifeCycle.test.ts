@@ -35,6 +35,23 @@ describe("reserve", () => {
         expect(first.attempt?.reference).not.toBe(second.attempt?.reference);
     });
 
+    it("stores the supplier total the attempt was created for", async () => {
+        create.mockImplementation(async (doc: any) => doc);
+
+        const result = await paymentAttemptService.reserve({ ...input, quotedTotal: 120.5, quotedCurrency: "GBP" });
+
+        expect(result.attempt).toEqual(expect.objectContaining({ quotedTotal: 120.5, quotedCurrency: "GBP" }));
+    });
+
+    it("leaves the quote out when none is given", async () => {
+        create.mockImplementation(async (doc: any) => doc);
+
+        await paymentAttemptService.reserve(input);
+
+        expect(create.mock.calls[0][0]).not.toHaveProperty("quotedTotal");
+        expect(create.mock.calls[0][0]).not.toHaveProperty("quotedCurrency");
+    });
+
     it("reports a conflict when the one-active-attempt index rejects the insert", async () => {
         create.mockRejectedValue(Object.assign(new Error("E11000 duplicate key"), { code: 11000 }));
 
@@ -159,6 +176,17 @@ describe("expire", () => {
         findOneAndUpdate.mockResolvedValue(null);
 
         expect(await paymentAttemptService.expire("attempt-1")).toBeNull();
+    });
+
+    it("records the reason it was closed when one is given", async () => {
+        findOneAndUpdate.mockResolvedValue({ status: "expired" });
+
+        await paymentAttemptService.expire("attempt-1", "superseded_price_changed");
+
+        const [, update] = findOneAndUpdate.mock.calls[0];
+        expect(update.$set).toEqual(
+            expect.objectContaining({ status: "expired", isActive: false, failureReason: "superseded_price_changed" })
+        );
     });
 });
 

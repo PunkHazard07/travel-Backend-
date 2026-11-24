@@ -3,7 +3,8 @@ import DuffelService from "../Config/duffel.js";
 import { bookingService, BookingError } from "../Config/bookingService.js";
 import { mapDuffelFlightOffer } from "../utils/mapper.js";
 import { validateHotelBookingInput } from "../utils/hotelBooking.js";
-import { collectServicePrices, computeFlightTotal, FlightPriceError } from "../utils/flightPricing.js";
+import { FlightPriceError } from "../utils/flightPricing.js";
+import { fetchFlightQuote, FlightQuoteError } from "../utils/flightQuote.js";
 
 let duffelService: any = null;
 const getDuffel = (): any => {
@@ -44,59 +45,36 @@ export const createFlightBooking = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "selectedServices must be a list" });
         }
 
-        const duffel = getDuffel();
-        if (!duffel.isConfigured()) {
-            return res.status(503).json({ success: false, message: "Flight booking is temporarily unavailable" });
+        if (selectedServices !== undefined && !Array.isArray(selectedServices)) {
+            return res.status(400).json({ success: false, message: "selectedServices must be a list" });
         }
-
-        const offerResult = await duffel.getOffer(flightOffer.offerId);
-        if (!offerResult.success) {
-            const status = offerResult.error?.status;
-            if (status === 404 || status === 410 || status === 422) {
-                return res.status(409).json({
-                    success: false,
-                    code: "OFFER_UNAVAILABLE",
-                    message: "This flight offer is no longer available. Please search again.",
-                });
-            }
-            console.error("Duffel getOffer failed:", offerResult.error);
-            return res.status(502).json({ success: false, message: "The flight provider is temporarily unavailable" });
-        }
-
-        const offer = offerResult.data;
-
-        if (offer.expires_at && new Date(offer.expires_at).getTime() <= Date.now()) {
-            return res.status(409).json({
-                success: false,
-                code: "OFFER_EXPIRED",
-                message: "This flight offer has expired. Please search again.",
-            });
-        }
-
+        
         const selected = (selectedServices ?? []).map((s: any) => ({ id: s?.id, quantity: s?.quantity }));
 
-        // Bag-type extras are on the offer; seats are only in the seat map.
-        let prices = collectServicePrices(offer);
-        if (selected.some((s: any) => typeof s.id === "string" && !prices.has(s.id))) {
-            const seatResult = await duffel.getSeatMap(flightOffer.offerId);
-            if (seatResult.success) {
-                prices = collectServicePrices(offer, seatResult.data);
-            } else if (seatResult.error?.code !== "seat_map_unavailable") {
-                console.error("Duffel seat map failed:", seatResult.error);
-                return res.status(502).json({ success: false, message: "The flight provider is temporarily unavailable" });
-            }
-        }
-
-        let total;
+        let quote;
         try {
-            total = computeFlightTotal(offer, selected, prices);
+            quote = await fetchFlightQuote(getDuffel(), flightOffer.offerId, selected);
         } catch (error) {
+            if (error instanceof FlightQuoteError) {
+                switch (error.code) {
+                    case "provider_not_configured":
+                        return res.status(503).json({ success: false, message: error.message });
+                    case "offer_unavailable":
+                        return res.status(409).json({ success: false, code: "OFFER_UNAVAILABLE", message: error.message });
+                    case "offer_expired":
+                        return res.status(409).json({ success: false, code: "OFFER_EXPIRED", message: error.message });
+                    default:
+                        return res.status(502).json({ success: false, message: error.message });
+                }
+            }
             if (error instanceof FlightPriceError) {
                 const status = error.code === "offer_price_invalid" ? 502 : 400;
                 return res.status(status).json({ success: false, code: error.code, message: error.message });
             }
             throw error;
         }
+
+        const { offer, total } = quote;
 
         if (totalPrice !== undefined && Math.abs(Number(totalPrice) - total.total) > Math.max(1, total.total * 0.01)) {
             console.warn(

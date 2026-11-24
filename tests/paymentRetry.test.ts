@@ -9,7 +9,7 @@ const paystackInitialize = jest.fn<(...args: any[]) => Promise<any>>();
 const paystackVerify = jest.fn<(...args: any[]) => Promise<any>>();
 const verifyWebhookSignature = jest.fn<(...args: any[]) => boolean>();
 
-const refreshPrebookIfStale = jest.fn<(...args: any[]) => Promise<any>>();
+const revalidateForPayment = jest.fn<(...args: any[]) => Promise<any>>();
 const confirmWithProvider = jest.fn<(...args: any[]) => Promise<any>>();
 const convertForCheckout = jest.fn<(...args: any[]) => Promise<number>>();
 
@@ -50,7 +50,7 @@ jest.unstable_mockModule("../Config/paystackService.js", () => ({
     },
 }));
 jest.unstable_mockModule("../Config/bookingService.js", () => ({
-    bookingService: { refreshPrebookIfStale, confirmWithProvider },
+    bookingService: { revalidateForPayment, confirmWithProvider },
     BookingError: MockBookingError,
 }));
 jest.unstable_mockModule("../utils/currencyConverter.js", () => ({ convertForCheckout }));
@@ -138,7 +138,7 @@ beforeEach(() => {
 
     bookingFindOne.mockResolvedValue(makeBooking());
     bookingUpdateOne.mockResolvedValue({});
-    refreshPrebookIfStale.mockResolvedValue({ priceChanged: false });
+    revalidateForPayment.mockResolvedValue({ priceChanged: false });
     convertForCheckout.mockResolvedValue(100);
     getBlockingAttempts.mockResolvedValue([]);
     reserve.mockResolvedValue({

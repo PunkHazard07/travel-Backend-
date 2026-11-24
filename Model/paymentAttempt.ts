@@ -43,6 +43,8 @@ export interface PaymentAttemptDocument extends Document {
     amount: number;
     currency: string;
     currencyConversion?: AttemptCurrencyConversion;
+    quotedTotal: number | null;
+    quotedCurrency: string | null;
     status: AttemptStatus;
     isActive: boolean;
 
@@ -95,6 +97,14 @@ const paymentAttemptSchema = new Schema<PaymentAttemptDocument>({
             to: String,
             originalAmount: Number,
             convertedAmount: Number,
+        },
+        quotedTotal: {
+            type: Number,
+            default: null,
+        },
+        quotedCurrency: {
+            type: String,
+            default: null,
         },
         status: {
             type: String,
