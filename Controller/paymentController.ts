@@ -10,6 +10,7 @@ import { checkPaymentEligibility } from "../utils/paymentEligibility.js";
 import { decideAttemptRetry } from "../utils/paymentAttemptEligibility.js";
 import { isAmbiguousPaystackError } from "../utils/paystackErrors.js";
 import { supplierCurrency, totalsMatch } from "../utils/supplierPrice.js";
+import { describeSettlement } from "../utils/settlementResponse.js";
 // import { isPendingAttemptExpired } from "../utils/paymentAttemptPolicy.js";
 
 const supersedeAttempt = async (attempt: PaymentAttemptDocument | null, reason: string): Promise<void> => {
@@ -436,20 +437,13 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
         const settled = await settleAttemptPayment(booking, attempt, paymentData, "verify");
 
-        // Money was taken but the booking couldn't be confirmed (wrong
-        // amount, cancelled, or provider failure).
-        if (settled.paymentStatus === "flagged") {
-            return res.status(409).json({
-                success: false,
-                message: 
-                "Your payment was received but the booking needs manual review. Please contact support and quote your booking reference.",
-                data: settled
-            })
-        }
+        const report = describeSettlement(settled, reference);
 
-        res.status(200).json({
-            success: true,
-            message: "Payment verified and booking confirmed",
+        res.status(report.httpStatus).json({
+            success: report.success,
+            bookingConfirmed: report.bookingConfirmed,
+            code: report.code,
+            message: report.message,
             data: settled,
         });
     } catch (error: any) {
