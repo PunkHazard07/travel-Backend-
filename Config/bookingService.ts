@@ -4,11 +4,126 @@ import Hotel from "../Model/hotel.js";
 import { BookingError } from "../utils/bookingError.js";
 import { prebookOrThrow, bookHotel, prebookMaxAgeMs, type ProviderOutcome } from "../utils/hotelProvider.js";
 import { bookFlight } from "../utils/flightProvider.js";
-import { hasPriceChanged, type HotelBookingInput } from "../utils/hotelBooking.js";
+import { hasPriceChanged, SETTLEMENT_CURRENCY, type HotelBookingInput } from "../utils/hotelBooking.js";
+import DuffelService from "./duffel.js";
+import { fetchFlightQuote, FlightQuoteError } from "../utils/flightQuote.js";
+import { FlightPriceError, isSamePrice } from "../utils/flightPricing.js";
 
 // Re-exported so the controllers' existing imports from this file keep working.
 export { BookingError };
 export type { ProviderOutcome };
+
+// What a pre-payment price check found. `previousTotal` / `newTotal` are in
+// `currency` (Duffel's currency for flights, naira for hotels).
+export interface PriceRevalidation {
+  revalidated: boolean;
+  priceChanged: boolean;
+  previousTotal: number;
+  newTotal: number;
+  currency: string;
+  previousCurrency?: string;
+}
+
+let duffelService: DuffelService | null = null;
+const getDuffel = (): DuffelService => {
+  if (!duffelService) duffelService = new DuffelService();
+  return duffelService;
+};
+
+// Asks LiteAPI for a fresh prebook EVERY time payment is about to start, so the
+// charge is never built from a stored price. The booking's total is always set
+// from the fresh authoritative price; `priceChanged` tells the caller the
+// customer must re-confirm the new amount.
+const refreshHotelPrebook = async (booking: BookingDocument): Promise<PriceRevalidation> => {
+  if (!booking.offerId) {
+    throw new BookingError(409, "PREBOOK_EXPIRED", "This booking can no longer be paid. Please search again.");
+  }
+
+  const { prebookId, price } = await prebookOrThrow(booking.offerId);
+  const previousTotal = booking.totalPrice;
+
+  booking.prebookId = prebookId;
+  booking.prebookedAt = new Date();
+  booking.totalPrice = price.total;
+  await booking.save();
+
+  return {
+    revalidated: true,
+    priceChanged: hasPriceChanged(previousTotal, price.total),
+    previousTotal,
+    newTotal: price.total,
+    currency: SETTLEMENT_CURRENCY
+  };
+};
+
+// Asks Duffel what the offer costs right now (offer + the extras the customer
+// picked). Fails closed: if Duffel can't be reached, or the offer is expired or
+// gone, this throws and payment must not start.
+const revalidateFlightPrice = async (booking: BookingDocument): Promise<PriceRevalidation> => {
+  const offerId = booking.offerId ?? booking.flightData?.offerId;
+  if (!offerId) {
+    throw new BookingError(409, "OFFER_UNAVAILABLE", "This flight offer is no longer available. Please search again.");
+  }
+
+  const selected = (booking.flightData?.selectedServices ?? []).map((s: any) => ({ id: s?.id, quantity: s?.quantity }));
+
+  let quote;
+  try {
+    quote = await fetchFlightQuote(getDuffel(), offerId, selected);
+  } catch (error) {
+      if (error instanceof FlightQuoteError) {
+      switch (error.code) {
+        case "offer_unavailable":
+          throw new BookingError(409, "OFFER_UNAVAILABLE", error.message);
+        case "offer_expired":
+          throw new BookingError(409, "OFFER_EXPIRED", error.message);
+        case "provider_not_configured":
+          throw new BookingError(503, "PROVIDER_UNAVAILABLE", error.message);
+        default:
+          throw new BookingError(502, "PROVIDER_UNAVAILABLE", error.message);
+      }
+    }
+    if (error instanceof FlightPriceError) {
+      if (error.code === "offer_price_invalid") {
+        throw new BookingError(502, "PROVIDER_BAD_RESPONSE", "Could not determine the current price for this flight.");
+      }
+      // A selected extra (bag, seat) is no longer listed by Duffel.
+      throw new BookingError(409, "SERVICE_UNAVAILABLE", "One of your selected extras is no longer available. Please review your booking.");
+    }
+    throw error;
+  }
+
+  const previousTotal = booking.totalPrice;
+  const previousCurrency = booking.flightData?.price?.currency;
+  const { total, offer } = quote;
+
+  const currencyChanged = Boolean(previousCurrency) && previousCurrency!.toUpperCase() !== total.currency.toUpperCase();
+  const priceChanged = currencyChanged || !isSamePrice(previousTotal, total.total);
+
+  if (priceChanged) {
+    const newPrice = {
+      currency: total.currency,
+      total: total.offerTotal,
+      base: Number.parseFloat(offer.base_amount) || total.offerTotal
+    };
+
+    // Conditional on unpaid so a payment that settles meanwhile is never overwritten.
+    await Booking.updateOne (
+      { _id: booking._id, paymentStatus: "unpaid" },
+      { $set: { totalPrice: total.total, "flightData.price": newPrice } }
+    );
+    booking.totalPrice = total.total;
+    booking.set("flightData.price", newPrice);
+  }
+  return {
+    revalidated: true,
+    priceChanged,
+    previousTotal,
+    newTotal: total.total,
+    currency: total.currency,
+    ...(currencyChanged ? { previousCurrency } : {})
+  };
+};
 
 export const bookingService = {
   async confirmWithProvider(booking: BookingDocument): Promise<ProviderOutcome> {
@@ -106,38 +221,12 @@ export const bookingService = {
     return booking;
   },
 
-    // Called before sending the customer to pay. If the prebook has gone
-    // stale it is redone; the booking's total is always set from the fresh
-    // authoritative price. `priceChanged` tells the caller the customer must
-    // re-confirm the new amount.
-    async refreshPrebookIfStale(booking: BookingDocument): Promise<{ refreshed: boolean; priceChanged: boolean; previousTotal?: number; newTotal?: number }> {
-      if (booking.bookingType !== "hotel") {
-        return { refreshed: false, priceChanged: false };
-      }
-
-      const age = booking.prebookedAt ? Date.now() - booking.prebookedAt.getTime() : Infinity;
-      if (booking.prebookId && age < prebookMaxAgeMs()) {
-        return { refreshed: false, priceChanged: false };
-      }
-
-      if (!booking.offerId) {
-        throw new BookingError(409, "PREBOOK_EXPIRED", "This booking can no longer be paid. Please search again.");
-      }
-
-      const { prebookId, price } = await prebookOrThrow(booking.offerId);
-      const previousTotal = booking.totalPrice;
-
-      booking.prebookId = prebookId;
-      booking.prebookedAt = new Date();
-      booking.totalPrice = price.total;
-      await booking.save();
-
-      return {
-        refreshed: true,
-        priceChanged: hasPriceChanged(previousTotal, price.total),
-        previousTotal,
-        newTotal: price.total
-      };
+    // Called before sending the customer to pay, every time. Re-checks the
+    // supplier's CURRENT price (LiteAPI prebook for hotels, Duffel offer for
+    // flights) and sets the booking's total from it. `priceChanged` tells the
+    // caller the customer must confirm the new amount before paying
+    async revalidateForPayment(booking: BookingDocument): Promise<PriceRevalidation> {
+      return booking.bookingType === "flight" ? revalidateFlightPrice(booking) : refreshHotelPrebook(booking);
     },
 
     async getUserBookings(userId: string, filters: { bookingType?: string; status?: string } = {}): Promise<BookingDocument[]> {

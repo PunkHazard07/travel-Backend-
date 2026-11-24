@@ -3,8 +3,10 @@ import type { PaymentAttemptDocument } from "../Model/paymentAttempt.js";
 import { paystackService } from "./paystackService.js";
 import { paymentAttemptService } from "./paymentAttemptService.js";
 import { settleAttemptPayment, toOutcomeInput, type VerifiedPayment } from "./paymentSettlement.js";
+import { PaystackError } from "../utils/paystackErrors.js";
 import {
     ATTEMPT_RECHECK_INTERVAL_MS,
+    EXPIRED_RECHECK_WINDOW_MS,
     INITIATING_ATTEMPT_MAX_AGE_MS,
     RECONCILE_BATCH_SIZE,
     RECONCILE_INTERVAL_MS,
@@ -17,6 +19,7 @@ export type ReconcileAction =
     | "settled"                  // Paystack says paid: booking settled, attempt recorded
     | "closed_failed"            // attempt closed as failed
     | "expired"                  // unpaid past our limit: closed so a new attempt is allowed
+    | "expired_rechecked"        // already-expired attempt checked again; still unpaid
     | "still_pending"            // still open, not old enough to close
     | "needs_review"             // unknown / reversed: left for a person
     | "verification_unavailable" // Paystack couldn't be reached: nothing changed
@@ -32,6 +35,7 @@ const emptyCounts = (): Record<ReconcileAction, number> => ({
     settled: 0,
     closed_failed: 0,
     expired: 0,
+    expired_rechecked: 0,
     still_pending: 0,
     needs_review: 0,
     verification_unavailable: 0,
@@ -39,61 +43,172 @@ const emptyCounts = (): Record<ReconcileAction, number> => ({
 });
 
 // Handles ONE attempt. Never closes anything it could not check first.
-export const reconcileAttempt = async (attempt: PaymentAttemptDocument, now: Date = new Date()): Promise<ReconcileAction> => {
-    //The customer was never given a link, so nobody can pay this one. Safe to close.
-    if (attempt.status === "initiating") {
-        if (!isInitiatingAttemptStale(attempt, now)) return "skipped";
-        await paymentAttemptService.markInitializationFailed(attempt._id, "stale_initiating");
+
+export const reconcileAttempt = async (
+    attempt: PaymentAttemptDocument,
+    now: Date = new Date()
+): Promise<ReconcileAction> => {
+
+    // Identify whether this attempt is still waiting for
+    // the result of its original Paystack initialization.
+    const isInitiating = attempt.status === "initiating";
+
+    // Only investigate an initiating attempt after 10 minutes.
+    // Do NOT mark it failed just because it is old.
+    if (
+        isInitiating &&
+        !isInitiatingAttemptStale(attempt, now)
+    ) {
+        return "skipped";
+    }
+
+    // Ask Paystack about initiating, pending and unknown attempts.
+    let verification: VerifiedPayment;
+
+    try {
+        verification = await paystackService.verifyPayment(
+            attempt.reference
+        );
+
+    } catch (verifyError) {
+
+        console.error(
+            `Reconcile: could not verify ${attempt.reference}:`,
+            verifyError
+        );
+
+        const referenceNotFound =
+            verifyError instanceof PaystackError &&
+            verifyError.kind === "not_found";
+
+    if (isInitiating && referenceNotFound) {
+        await paymentAttemptService.markInitializationFailed(
+            attempt._id,
+            "paystack_reference_not_found"
+        );
+
         return "closed_failed";
     }
 
-    //pending or unknown: ask Paystack first.
-    let verification: VerifiedPayment;
-    try {
-        verification = await paystackService.verifyPayment(attempt.reference);
-    } catch (verifyError) {
-        console.error(`Reconcile: could not verify ${attempt.reference}:`, verifyError);
-        // Note that we looked (so we don't hammer Paystack), but change no status.
-        await paymentAttemptService.recordOutcome(attempt.reference, { providerStatus: null }, "reconcile");
+        // Network errors, timeouts and other unavailable responses
+        // do not establish whether payment was created or completed.
+        // Preserve the attempt's status and try again later.
+        await paymentAttemptService.recordOutcome(
+            attempt.reference,
+            { providerStatus: null },
+            "reconcile"
+        );
+
+        // A link was issued yet Paystack has no record of it: a person should look.
+        if (referenceNotFound) return "needs_review";
+
         return "verification_unavailable";
     }
 
+    // Paystack confirms payment.
     if (verification.success) {
+
         const booking = await Booking.findById(attempt.bookingId);
+
         if (!booking) {
-            // Money arrived for a booking that no longer exists: record it, flag for a person.
-            console.error(`Reconcile: attempt ${attempt.reference} was paid but booking ${attempt.bookingId} is missing`);
-            await paymentAttemptService.recordOutcome(attempt.reference, toOutcomeInput(verification), "reconcile");
-            await paymentAttemptService.flagDuplicatePayment(attempt._id);
+
+            console.error(
+                `Reconcile: attempt ${attempt.reference} was paid but booking ${attempt.bookingId} is missing`
+            );
+
+            await paymentAttemptService.recordOutcome(
+                attempt.reference,
+                toOutcomeInput(verification),
+                "reconcile"
+            );
+
+            await paymentAttemptService.flagDuplicatePayment(
+                attempt._id
+            );
+
             return "needs_review";
         }
-        await settleAttemptPayment(booking, attempt, verification, "reconcile");
+
+        await settleAttemptPayment(
+            booking,
+            attempt,
+            verification,
+            "reconcile"
+        );
+
         return "settled";
     }
 
-    const outcome = await paymentAttemptService.recordOutcome(attempt.reference, toOutcomeInput(verification), "reconcile");
+    // No checkout link was ever stored, so nobody can pay this attempt (the
+    // initialize response was lost). Safe to close even if Paystack knows it.
+    if (isInitiating || (attempt.status === "pending" && !attempt.authorizationUrl)) {
+        await paymentAttemptService.closeUnreachable(attempt._id);
+        return "closed_failed";
+    }
+
+    // Already expired and still unpaid: just note that we checked again.
+    if (attempt.status === "expired") {
+        await paymentAttemptService.recordOutcome(attempt.reference, toOutcomeInput(verification), "reconcile");
+        return "expired_rechecked";
+    }
+
+    // Payment was not confirmed as successful.
+    // Record the actual status Paystack returned.
+    const outcome = await paymentAttemptService.recordOutcome(
+        attempt.reference,
+        toOutcomeInput(verification),
+        "reconcile"
+    );
+
     const current = outcome.attempt;
 
     if (!current) return "skipped";
-    if (current.status === "failed") return "closed_failed";
-    if (current.status === "unknown") return "needs_review";
-    if (current.status === "success") return "settled";
-    if (current.status === "expired") return "expired";
 
-    // Still open at Paystack. Only now, and only because Paystack said "not paid",
-    // do we close it if it is past our time limit.
-    if (current.status === "pending" && isPendingAttemptExpired(current, now)) {
-        const expired = await paymentAttemptService.expire(current._id);
-        return expired ? "expired" : "skipped";
+    if (current.status === "failed") {
+        return "closed_failed";
     }
 
-    return "still_pending";
+    if (current.status === "unknown") {
+        return "needs_review";
+    }
+
+    if (current.status === "success") {
+        return "settled";
+    }
+
+    if (current.status === "expired") {
+        return "expired";
+    }
+
+    // Paystack still reports an open transaction.
+    // Keep it active, even if our local one-hour threshold has passed.
+    // Local expiry alone does not prove that the Paystack link is unusable.
+    if (current.status === "pending") {
+
+        if (isPendingAttemptExpired(current, now)) {
+            console.warn(
+                `Payment attempt ${current.reference} is still pending after its local time limit. Keeping it active.`
+            );
+        }
+
+        return "still_pending";
+    }
+
+    // Paystack returned an outcome we could not map to a known
+    // attempt status. Do not release the attempt automatically.
+    if (current.status === "initiating") {
+        return "needs_review";
+    }
+
+    return "skipped";
 };
+
 
 export const reconcileStaleAttempts = async (now: Date = new Date()): Promise<ReconcileSummary> => {
     const attempts = await paymentAttemptService.findStaleAttempts({
         initiatingBefore: new Date(now.getTime() - INITIATING_ATTEMPT_MAX_AGE_MS),
         recheckBefore: new Date(now.getTime() - ATTEMPT_RECHECK_INTERVAL_MS),
+        expiredAfter: new Date(now.getTime() - EXPIRED_RECHECK_WINDOW_MS),
         limit: RECONCILE_BATCH_SIZE,
     });
 
@@ -111,15 +226,16 @@ export const reconcileStaleAttempts = async (now: Date = new Date()): Promise<Re
     return { checked: attempts.length, counts };
 };
 
-let reconcileTimer: NodeJS.Timeout | null = null;
-let running = false;
+    let reconcileTimer: NodeJS.Timeout | null = null;
+    let running = false;
 
-export const startPaymentReconciliationSchedule = (): void => {
-    if (reconcileTimer) return;
+    export const startPaymentReconciliationSchedule = (): void => {
+        if (reconcileTimer) return;
+            console.log(`Payment reconciliation schedule started (every ${RECONCILE_INTERVAL_MS / 60000} min)`);
 
-    reconcileTimer = setInterval(() => {
-        if (running) return;
-        running = true;
+        reconcileTimer = setInterval(() => {
+            if (running) return;
+                running = true;
 
         reconcileStaleAttempts()
             .then((summary) => {

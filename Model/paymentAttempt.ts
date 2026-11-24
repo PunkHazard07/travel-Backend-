@@ -25,7 +25,7 @@ export const attemptStatusFields = (status: AttemptStatus): { status: AttemptSta
 export const RESOLVED_BY = ["verify", "webhook", "reconcile"] as const;
 export type ResolvedBy = (typeof RESOLVED_BY)[number];
 
-export const generateAttemptReference = (bookingReference: string): string =>`${bookingReference}-${randomBytes(4).toString("hex").toUpperCase()}`;
+export const generateAttemptReference = (bookingReference: string): string =>`${bookingReference}-${randomBytes(8).toString("hex").toUpperCase()}`;
 
 export interface AttemptCurrencyConversion {
     from?: string;
@@ -43,6 +43,8 @@ export interface PaymentAttemptDocument extends Document {
     amount: number;
     currency: string;
     currencyConversion?: AttemptCurrencyConversion;
+    quotedTotal: number | null;
+    quotedCurrency: string | null;
     status: AttemptStatus;
     isActive: boolean;
 
@@ -59,7 +61,7 @@ export interface PaymentAttemptDocument extends Document {
     verifiedAt: Date | null;
     lastCheckedAt: Date | null;
     verifyAttempts: number;
- 
+
     // Managed by mongoose via `timestamps: true`.
     createdAt: Date;
     updatedAt: Date;
@@ -95,6 +97,14 @@ const paymentAttemptSchema = new Schema<PaymentAttemptDocument>({
             to: String,
             originalAmount: Number,
             convertedAmount: Number,
+        },
+        quotedTotal: {
+            type: Number,
+            default: null,
+        },
+        quotedCurrency: {
+            type: String,
+            default: null,
         },
         status: {
             type: String,

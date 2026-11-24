@@ -2,7 +2,7 @@ import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 
 const findOne = jest.fn<(...args: any[]) => Promise<any>>();
 const paystackInitialize = jest.fn<(...args: any[]) => Promise<any>>();
-const refreshPrebookIfStale = jest.fn<(...args: any[]) => Promise<any>>();
+const revalidateForPayment = jest.fn<(...args: any[]) => Promise<any>>();
 const convertForCheckout = jest.fn<(...args: any[]) => Promise<number>>();
 const bookingUpdateOne = jest.fn<(...args: any[]) => Promise<any>>();
 const getBlockingAttempts = jest.fn<(...args: any[]) => Promise<any[]>>();
@@ -42,7 +42,7 @@ jest.unstable_mockModule("../Config/paymentAttemptService.js", () => ({
     },
 }));
 jest.unstable_mockModule("../Config/bookingService.js", () => ({
-    bookingService: { refreshPrebookIfStale },
+    bookingService: { revalidateForPayment },
     BookingError: MockBookingError,
 }));
 jest.unstable_mockModule("../utils/currencyConverter.js", () => ({
@@ -85,7 +85,7 @@ beforeEach(() => {
         authorizationUrl: "https://paystack.test/auth",
         accessCode: "access-1",
     });
-    refreshPrebookIfStale.mockResolvedValue({ priceChanged: false });
+    revalidateForPayment.mockResolvedValue({ priceChanged: false });
     convertForCheckout.mockResolvedValue(100);
     getBlockingAttempts.mockResolvedValue([]);
     reserve.mockResolvedValue({
@@ -167,7 +167,7 @@ describe("initializePayment eligibility gate", () => {
             expect.objectContaining({ success: false, code: expect.any(String) })
         );
         expect(convertForCheckout).not.toHaveBeenCalled();
-        expect(refreshPrebookIfStale).not.toHaveBeenCalled();
+        expect(revalidateForPayment).not.toHaveBeenCalled();
         expect(getBlockingAttempts).not.toHaveBeenCalled();
         expect(reserve).not.toHaveBeenCalled();
         expect(paystackInitialize).not.toHaveBeenCalled();

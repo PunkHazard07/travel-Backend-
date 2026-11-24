@@ -1,5 +1,13 @@
 export const PENDING_ATTEMPT_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 
+// Paystack's account-level payment session timeout (set once with
+// scripts/setPaymentSessionTimeout.ts).
+export const PAYSTACK_SESSION_TIMEOUT_SECONDS = 55 * 60; // 55 minutes
+
+// How long after expiring an attempt the sweep keeps checking it with Paystack,
+// in case a customer still paid on the old link.
+export const EXPIRED_RECHECK_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 export const INITIATING_ATTEMPT_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
 // The sweep re-checks a pending/unknown attempt with Paystack at most this often.

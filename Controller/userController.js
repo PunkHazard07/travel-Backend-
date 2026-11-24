@@ -238,7 +238,12 @@ export const deleteUserAccount = async (req, res) => {
       });
     }
 
-    await User.findByIdAndDelete(userId);
+    user.accountStatus = "deletion_pending";
+    user.deletionRequestedAt = new Date();
+
+    await user.save();
+    //not complete need to also determine what documents needs to be retained 
+    //partially fixed 
 
     res.status(200).json({
       success: true,

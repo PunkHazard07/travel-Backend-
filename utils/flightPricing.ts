@@ -104,3 +104,5 @@ export const computeFlightTotal = (offer: any, selectedServices: SelectedService
         services,
     };
 };
+
+export const isSamePrice = (a: number, b: number): boolean => Math.round(a * 100) === Math.round(b * 100);

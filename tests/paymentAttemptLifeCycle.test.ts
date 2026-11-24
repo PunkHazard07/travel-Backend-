@@ -31,8 +31,25 @@ describe("reserve", () => {
 
         expect(first.conflict).toBe(false);
         expect(first.attempt).toEqual(expect.objectContaining({ status: "initiating", isActive: true, amount: 100, currency: "NGN" }));
-        expect(first.attempt?.reference).toMatch(/^BK-TEST123456-[0-9A-F]{8}$/);
+        expect(first.attempt?.reference).toMatch(/^BK-TEST123456-[0-9A-F]{16}$/);
         expect(first.attempt?.reference).not.toBe(second.attempt?.reference);
+    });
+
+    it("stores the supplier total the attempt was created for", async () => {
+        create.mockImplementation(async (doc: any) => doc);
+
+        const result = await paymentAttemptService.reserve({ ...input, quotedTotal: 120.5, quotedCurrency: "GBP" });
+
+        expect(result.attempt).toEqual(expect.objectContaining({ quotedTotal: 120.5, quotedCurrency: "GBP" }));
+    });
+
+    it("leaves the quote out when none is given", async () => {
+        create.mockImplementation(async (doc: any) => doc);
+
+        await paymentAttemptService.reserve(input);
+
+        expect(create.mock.calls[0][0]).not.toHaveProperty("quotedTotal");
+        expect(create.mock.calls[0][0]).not.toHaveProperty("quotedCurrency");
     });
 
     it("reports a conflict when the one-active-attempt index rejects the insert", async () => {
@@ -41,6 +58,32 @@ describe("reserve", () => {
         const result = await paymentAttemptService.reserve(input);
 
         expect(result).toEqual({ conflict: true, attempt: null });
+    });
+
+    it("retries with a new reference when only the random reference collided", async () => {
+        create
+            .mockRejectedValueOnce(Object.assign(new Error("E11000"), { code: 11000, keyPattern: { reference: 1 } }))
+            .mockImplementation(async (doc: any) => doc);
+
+        const result = await paymentAttemptService.reserve(input);
+
+        expect(result.conflict).toBe(false);
+        expect(create).toHaveBeenCalledTimes(2);
+        expect(create.mock.calls[0][0].reference).not.toBe(create.mock.calls[1][0].reference);
+    });
+
+    it("a conflict on the booking index is a real conflict and is not retried", async () => {
+        create.mockRejectedValue(Object.assign(new Error("E11000"), { code: 11000, keyPattern: { bookingId: 1 } }));
+
+        expect(await paymentAttemptService.reserve(input)).toEqual({ conflict: true, attempt: null });
+        expect(create).toHaveBeenCalledTimes(1);
+    });
+
+    it("gives up after repeated reference collisions rather than looping forever", async () => {
+        create.mockRejectedValue(Object.assign(new Error("E11000"), { code: 11000, keyPattern: { reference: 1 } }));
+
+        await expect(paymentAttemptService.reserve(input)).rejects.toThrow("unique payment reference");
+        expect(create).toHaveBeenCalledTimes(3);
     });
 
     it("does not hide other database errors", async () => {
@@ -52,7 +95,7 @@ describe("reserve", () => {
 
 describe("getBlockingAttempts", () => {
     it("only asks for paid and still-open attempts, newest first", async () => {
-        const sort = jest.fn<(options: Record<string, number>) => Promise<any[]>>().mockResolvedValue([]);
+        const sort = (jest.fn() as any).mockResolvedValue([]);
         find.mockReturnValue({ sort });
 
         await paymentAttemptService.getBlockingAttempts("booking-1");
@@ -89,6 +132,33 @@ describe("markPending and markInitializationFailed", () => {
     });
 });
 
+describe("noteInitializationUncertain", () => {
+    it("records the reason but leaves the status as initiating", async () => {
+        updateOne.mockResolvedValue({});
+
+        await paymentAttemptService.noteInitializationUncertain("attempt-1", "timeout");
+
+        const [filter, update] = updateOne.mock.calls[0];
+        expect(filter).toEqual({ _id: "attempt-1", status: "initiating" });
+        expect(update.$set.failureReason).toContain("initialization_unconfirmed");
+        expect(update.$set.status).toBeUndefined();
+    });
+});
+
+describe("closeUnreachable", () => {
+    it("closes only an attempt that has no checkout link, as failed and inactive", async () => {
+        findOneAndUpdate.mockResolvedValue({ status: "failed" });
+
+        await paymentAttemptService.closeUnreachable("attempt-1");
+
+        const [filter, update] = findOneAndUpdate.mock.calls[0];
+        expect(filter).toEqual({ _id: "attempt-1", status: { $in: ["initiating", "pending"] }, authorizationUrl: null });
+        expect(update.$set).toEqual(
+            expect.objectContaining({ status: "failed", isActive: false, failureReason: "link_never_delivered" })
+        );
+    });
+});
+
 describe("expire", () => {
     it("only expires an attempt that is still pending, and closes it", async () => {
         findOneAndUpdate.mockResolvedValue({ status: "expired" });
@@ -107,24 +177,39 @@ describe("expire", () => {
 
         expect(await paymentAttemptService.expire("attempt-1")).toBeNull();
     });
+
+    it("records the reason it was closed when one is given", async () => {
+        findOneAndUpdate.mockResolvedValue({ status: "expired" });
+
+        await paymentAttemptService.expire("attempt-1", "superseded_price_changed");
+
+        const [, update] = findOneAndUpdate.mock.calls[0];
+        expect(update.$set).toEqual(
+            expect.objectContaining({ status: "expired", isActive: false, failureReason: "superseded_price_changed" })
+        );
+    });
 });
 
 describe("findStaleAttempts", () => {
     it("targets active attempts only, oldest first, within the batch limit", async () => {
-        const limit = jest.fn<(value: number) => Promise<any[]>>().mockResolvedValue([]);
+        const limit = (jest.fn() as any).mockResolvedValue([]);
         const sort = jest.fn().mockReturnValue({ limit });
         find.mockReturnValue({ sort });
         const initiatingBefore = new Date("2026-11-10T11:50:00.000Z");
         const recheckBefore = new Date("2026-11-10T11:55:00.000Z");
+        const expiredAfter = new Date("2026-11-09T12:00:00.000Z");
 
-        await paymentAttemptService.findStaleAttempts({ initiatingBefore, recheckBefore, limit: 50 });
+        await paymentAttemptService.findStaleAttempts({ initiatingBefore, recheckBefore, expiredAfter, limit: 50 });
 
         const [filter] = find.mock.calls[0];
-        expect(filter.isActive).toBe(true);
-        expect(filter.$or[0]).toEqual({ status: "initiating", createdAt: { $lt: initiatingBefore } });
+        const notCheckedSince = [{ lastCheckedAt: null }, { lastCheckedAt: { $lt: recheckBefore } }];
+        expect(filter.$or[0]).toEqual({ isActive: true, status: "initiating", createdAt: { $lt: initiatingBefore } });
+        expect(filter.$or[1].isActive).toBe(true);
         expect(filter.$or[1].status.$in).toEqual(["pending", "unknown"]);
         expect(filter.$or[1].createdAt).toEqual({ $lt: recheckBefore });
-        expect(filter.$or[1].$or).toEqual([{ lastCheckedAt: null }, { lastCheckedAt: { $lt: recheckBefore } }]);
+        expect(filter.$or[1].$or).toEqual(notCheckedSince);
+        // recently expired attempts are re-checked too, within the window only
+        expect(filter.$or[2]).toEqual({ status: "expired", verifiedAt: { $gt: expiredAfter }, $or: notCheckedSince });
         expect(sort).toHaveBeenCalledWith({ createdAt: 1 });
         expect(limit).toHaveBeenCalledWith(50);
     });

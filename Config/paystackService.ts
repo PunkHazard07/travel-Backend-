@@ -1,8 +1,13 @@
 import axios from "axios";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import { classifyPaystackError } from "../utils/paystackErrors.js";
 // Load environment variables from .env file
 dotenv.config();
+
+// Without a timeout a hung Paystack call would hold the request (and the
+// attempt reservation) open indefinitely.
+const PAYSTACK_REQUEST_TIMEOUT_MS = 15_000;
 
 interface InitializePaymentResult {
     success: boolean;
@@ -51,6 +56,7 @@ export const paystackService = {
                         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
                         "Content-Type": "application/json",
                     },
+                    timeout: PAYSTACK_REQUEST_TIMEOUT_MS
                 }
             );
 
@@ -62,9 +68,7 @@ export const paystackService = {
             };
         } catch (error: any) {
             console.error("Paystack initialization error:", error.response?.data || error);
-            throw new Error(
-                error.response?.data?.message || "Failed to initialize payment"
-            );
+            throw classifyPaystackError(error, "Failed to initialize payment");
         }
     },
 
@@ -77,6 +81,7 @@ export const paystackService = {
                     headers: {
                         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
                     },
+                    timeout: PAYSTACK_REQUEST_TIMEOUT_MS,
                 }
             );
 
@@ -94,9 +99,7 @@ export const paystackService = {
             };
         } catch (error: any) {
             console.error("Paystack verification error:", error.response?.data || error);
-            throw new Error(
-                error.response?.data?.message || "Failed to verify payment"
-            );
+            throw classifyPaystackError(error, "Failed to verify payment");
         }
     },
 
