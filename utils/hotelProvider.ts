@@ -1,5 +1,6 @@
 import type { BookingDocument } from "../Model/booking.js";
-import { prebookRate, bookRate, LiteApiError } from "../Config/liteBooking.js";
+import { prebookRate, bookRate, LiteApiError, isDuplicateClientReference } from "../Config/liteBooking.js";
+import { findHotelBooking } from "./providerLookup.js"
 import { BookingError } from "./bookingError.js";
 import { SETTLEMENT_CURRENCY, PrebookPriceError, computePrebookPrice, buildBookRequest, mapBookResponse, type PrebookPrice } from "./hotelBooking.js";
 
@@ -55,6 +56,24 @@ export const prebookOrThrow = async (offerId: string): Promise<{ prebookId: stri
     return { prebookId, price };
 };
 
+// The booking already exists at LiteAPI under our clientReference. Settle it from what LiteAPI holds.
+const resolveDuplicateReference = async (booking: BookingDocument): Promise<ProviderOutcome> => {
+    const found = await findHotelBooking(booking);
+
+    if (found.result === "found") {
+        if (found.providerStatus === "confirmed") {
+            return { outcome: "confirmed", providerBookingId: found.providerBookingId, providerData: found.providerData };
+        }
+        if (found.providerStatus === "cancelled") {
+            return { outcome: "failed", reason: "supplier_cancelled" };
+        }
+        return { outcome: "unknown", reason: "duplicate_reference_supplier_pending" };
+    }
+
+    // The supplier says a booking exists (4005) but we could not read it back: never "failed".
+    return { outcome: "unknown", reason: short(`duplicate_reference_unresolved: ${found.result}`) };
+};
+
 // Books a paid hotel booking with LiteAPI and classifies the result.
 export const bookHotel = async (booking: BookingDocument): Promise<ProviderOutcome> => {
     const hotelData: Record<string, any> = booking.hotelData ?? {};
@@ -92,6 +111,9 @@ export const bookHotel = async (booking: BookingDocument): Promise<ProviderOutco
         // exist, so this is not a clean failure.
         return { outcome: "unknown", reason: short(`provider_status_${mapped.status ?? "missing"}`) };
     } catch (error: any) {
+        if (isDuplicateClientReference(error)) {
+            return resolveDuplicateReference(booking);
+        }
         if (error instanceof LiteApiError) {
             console.error(`LiteAPI book failed for ${booking.bookingReference}:`, error.message);
             return error.kind === "rejected"

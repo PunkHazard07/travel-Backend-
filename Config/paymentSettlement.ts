@@ -1,9 +1,9 @@
-import { bookingService, type ProviderOutcome } from "./bookingService.js";
 import type { paystackService } from "./paystackService.js";
 import { paymentAttemptService, type ProviderVerification } from "./paymentAttemptService.js";
 import Booking, { type BookingDocument, type PaymentStatus } from "../Model/booking.js";
 import type { PaymentAttemptDocument, ResolvedBy } from "../Model/paymentAttempt.js";
 import { attemptQuoteStillMatches } from "../utils/supplierPrice.js";
+import { fulfillBooking } from "./fulfillment.js";
 
 export const SETTLEMENT_CURRENCY = "NGN";
 
@@ -99,63 +99,38 @@ const confirmBookingPaid = async (booking: BookingDocument, paymentData: Payment
                     channel: paymentData.channel,
                     amount: paymentData.amount,
                 },
+                fulfillmentStatus: "in_progress",
+                fulfillmentStartedAt: new Date(),
+                fulfillmentReason: null
             },
+            $inc: { fulfillmentAttempts: 1 },
         },
         { new: true}
     );
-
-    if (!claimed) {
+if (!claimed) {
         const current = await latest();
-        if (OPEN_PAYMENT_STATES.includes(current.paymentStatus) && current.status === "cancelled") {
-            return (await flagBooking(current._id, "paid_after_cancel", paymentData)) ?? (await latest());
+        if (OPEN_PAYMENT_STATES.includes(current.paymentStatus)) {
+            if (current.status === "cancelled") {
+                return (await flagBooking(current._id, "paid_after_cancel", paymentData)) ?? (await latest());
+            }
+            if (current.status !== "pending") {
+                // Money arrived for a booking that can no longer be fulfilled.
+                return (await flagBooking(current._id, "paid_on_non_pending_booking", paymentData)) ?? (await latest());
+            }
         }
+        // Another caller won the claim. What we return may still be "in_progress"; callers must
+        // read fulfillmentStatus, never assume the booking is confirmed.
         return current;
     }
 
-    // We won the claim: we're the only caller who runs the provider step.
     if (claimed.status !== "pending") {
         return claimed;
     }
 
-    const flagProviderProblem = (reason: string, detail: string, bookingStatus: "failed" | "pending") => {
-        claimed.status = bookingStatus;
-        claimed.paymentStatus = "flagged";
-        claimed.paymentMetadata = {
-            ...(claimed.paymentMetadata ?? {}),
-            flaggedReason: reason,
-            providerReason: detail,
-        };
-    };
-
-    // Confirm the booking with the appropriate provider:
-    // LiteAPI for hotels and Duffel for flights.
-    let outcome: ProviderOutcome;
-    try {
-        outcome = await bookingService.confirmWithProvider(claimed);
-    } catch (error: any) {
-        console.error(`Provider step threw after payment for booking ${claimed._id}:`, error);
-        outcome = { outcome: "unknown", reason: "unexpected_error" };
-    }
-
-    if (outcome.outcome === "confirmed") {
-        claimed.status = "confirmed";
-        claimed.providerBookingId = outcome.providerBookingId;
-        if (outcome.providerData) claimed.providerData = outcome.providerData;
-    } else if (outcome.outcome === "failed") {
-        // Provider said no: nothing was booked, the customer needs a refund.
-        console.error(`Provider rejected booking ${claimed._id} after payment: ${outcome.reason}`);
-        flagProviderProblem("provider_failed_after_payment", outcome.reason, "failed");
-    } else {
-        // We can't tell whether the reservation exists. Status stays
-        // "pending" (NOT failed) so nobody refunds a customer who may hold a
-        // real booking; re-running book with the same clientReference is
-        // idempotent, so a retry/reconcile can safely settle it.
-        console.error(`Provider outcome unknown for booking ${claimed._id}: ${outcome.reason}`);
-        flagProviderProblem("provider_outcome_unknown", outcome.reason, "pending");
-    }
-
-    await claimed.save();
-    return claimed;
+    // We won the claim: we are the only caller who runs the supplier step. fulfillBooking never
+    // throws and records the outcome atomically; anything it cannot record stays "in_progress"
+    // for the recovery sweeper (see fulfillmentRecovery.ts).
+    return fulfillBooking(claimed);
 };
 
 // Settles a verified-successful payment: confirms the booking (idempotent, atomic),

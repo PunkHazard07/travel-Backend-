@@ -5,9 +5,13 @@ export const BOOKING_TYPES = ["flight", "hotel"] as const;
 export const BOOKING_STATUSES = ["pending", "confirmed", "cancelled", "failed"] as const;
 export const PAYMENT_STATUSES = ["unpaid", "paid", "refunded", "processing", "flagged"] as const;
 
+//what the supplier(LiteAPI / Duffel) did with the reservation.
+export const FULFILLMENT_STATUSES = ["not_started", "in_progress", "confirmed", "failed", "unknown"] as const;
+
 export type BookingType = (typeof BOOKING_TYPES)[number];
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 
 export interface FlightSegment {
     departure: { iataCode?: string; at?: Date };
@@ -67,6 +71,11 @@ export interface BookingDocument extends Document {
     providerData: Record<string, any> | null;
     status: BookingStatus;
     paymentStatus: PaymentStatus;
+    fulfillmentStatus: FulfillmentStatus;
+    fulfillmentStartedAt: Date | null;
+    fulfillmentCheckedAt: Date | null;
+    fulfillmentAttempts: number;
+    fulfillmentReason: string | null;
     paymentMethod: "paystack" | null;
     paymentReference: string | null;
     authorizationUrl: string | null;
@@ -184,6 +193,27 @@ const bookingSchema = new Schema<BookingDocument>(
             type: String,
             default: "unpaid",
             enum: PAYMENT_STATUSES,
+        },
+        fulfillmentStatus: {
+            type: String,
+            default: "not_started",
+            enum: FULFILLMENT_STATUSES,
+        },
+        fulfillmentStartedAt: {
+            type: Date,
+            default: null,
+        },
+        fulfillmentCheckedAt: {
+            type: Date,
+            default: null,
+        },
+        fulfillmentAttempts: {
+            type: Number,
+            default: 0,
+        },
+        fulfillmentReason: {
+            type: String,
+            default: null,
         },
         paymentMethod: {
             type: String,

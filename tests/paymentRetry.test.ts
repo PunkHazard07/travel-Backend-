@@ -519,7 +519,13 @@ describe("webhook and verify reporting the same success", () => {
     it("settle the booking once and neither fails or flags a duplicate", async () => {
         const attempt = makeAttempt("pending");
         const unpaid = makeBooking({ paymentReference: OLD_REF });
-        const paid = makeBooking({ status: "confirmed", paymentStatus: "paid", paymentReference: OLD_REF });
+        const paid = makeBooking({
+            status: "confirmed",
+            paymentStatus: "paid",
+            fulfillmentStatus: "confirmed",
+            providerBookingId: "ord_1",
+            paymentReference: OLD_REF,
+        });
         let claimed = false;
 
         findByReference.mockResolvedValue(attempt);

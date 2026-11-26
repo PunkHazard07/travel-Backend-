@@ -1,4 +1,4 @@
-import { prebookRate, bookRate, classifyHttpStatus, LiteApiError } from "../Config/liteBooking.js";
+import { listBookingsByClientReference, isDuplicateClientReference, LiteApiError } from "../Config/liteBooking.js";
 
 const originalFetch = globalThis.fetch;
 const originalKey = process.env.LITE_KEY;
@@ -6,11 +6,15 @@ const originalKey = process.env.LITE_KEY;
 let lastUrl = "";
 let lastInit: any = null;
 
-const mockFetch = (status: number, body: unknown) => {
+const stubFetch = (status: number, body: unknown) => {
   globalThis.fetch = (async (url: any, init: any) => {
     lastUrl = String(url);
     lastInit = init;
-    return new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      text: async () => (body === undefined ? "" : JSON.stringify(body)),
+    } as Response;
   }) as typeof fetch;
 };
 
@@ -26,90 +30,74 @@ afterEach(() => {
   else process.env.LITE_KEY = originalKey;
 });
 
-describe("classifyHttpStatus", () => {
-  it("treats client errors as definitive rejections", () => {
-    for (const s of [400, 401, 403, 404, 422]) expect(classifyHttpStatus(s)).toBe("rejected");
-  });
-  it("treats timeouts, rate limits and server errors as unknown", () => {
-    for (const s of [408, 429, 500, 502, 503, 504]) expect(classifyHttpStatus(s)).toBe("unknown");
-  });
-});
+describe("listBookingsByClientReference", () => {
+  it("sends a GET with the api key and the encoded reference, and no body", async () => {
+    stubFetch(200, { data: [] });
 
-describe("prebookRate", () => {
-  it("returns the data payload", async () => {
-    mockFetch(200, { data: { prebookId: "pb-1", price: 1000 } });
-    await expect(prebookRate("offer-1")).resolves.toEqual({ prebookId: "pb-1", price: 1000 });
-  });
+    await listBookingsByClientReference("BK-ABC 123&x=1");
 
-  it("posts the offerId to the prebook endpoint with the api key", async () => {
-    mockFetch(200, { data: { prebookId: "pb-1" } });
-    await prebookRate("offer-1");
-    expect(lastUrl).toBe("https://book.liteapi.travel/v3.0/rates/prebook");
-    expect(lastInit.method).toBe("POST");
+    expect(lastUrl).toBe("https://book.liteapi.travel/v3.0/bookings?clientReference=BK-ABC%20123%26x%3D1");
+    expect(lastInit.method).toBe("GET");
     expect(lastInit.headers["X-API-Key"]).toBe("test-key");
-    expect(JSON.parse(lastInit.body)).toEqual({ offerId: "offer-1", usePaymentSdk: false });
+    expect(lastInit.body).toBeUndefined();
   });
 
-  it("maps a 400 to a rejected error carrying LiteAPI's message", async () => {
-    mockFetch(400, { error: { message: "invalid offerId" } });
-    await expect(prebookRate("bad")).rejects.toMatchObject({ kind: "rejected", status: 400, message: "invalid offerId" });
+  it("returns the list when a booking matches", async () => {
+    stubFetch(200, { data: [{ bookingId: "xEB7DKLZ7", clientReference: "BK-1", status: "CONFIRMED" }] });
+
+    await expect(listBookingsByClientReference("BK-1")).resolves.toEqual([{ bookingId: "xEB7DKLZ7", clientReference: "BK-1", status: "CONFIRMED" }]);
   });
 
-  it("maps a 500 to an unknown-outcome error", async () => {
-    mockFetch(500, "boom");
-    await expect(prebookRate("x")).rejects.toMatchObject({ kind: "unknown", status: 500 });
+  it("returns an empty list when nothing matches (HTTP 200 with data: [])", async () => {
+    stubFetch(200, { data: [] });
+
+    await expect(listBookingsByClientReference("BK-NONE")).resolves.toEqual([]);
   });
 
-  it("maps a network failure to an unknown-outcome error", async () => {
+  it("reports a server error as an unknown-outcome error", async () => {
+    stubFetch(503, { error: { message: "unavailable" } });
+
+    await expect(listBookingsByClientReference("BK-1")).rejects.toMatchObject({ kind: "unknown", status: 503 });
+  });
+
+  it("reports a network failure as an unknown-outcome error", async () => {
     globalThis.fetch = (async () => {
       throw new Error("socket hang up");
     }) as typeof fetch;
-    await expect(prebookRate("x")).rejects.toMatchObject({ kind: "unknown" });
+
+    await expect(listBookingsByClientReference("BK-1")).rejects.toMatchObject({ kind: "unknown" });
   });
 
-  it("treats a 200 carrying an error and no data as a rejection", async () => {
-    mockFetch(200, { error: { message: "sold out" } });
-    await expect(prebookRate("x")).rejects.toMatchObject({ kind: "rejected", message: "sold out" });
-  });
-
-  it("treats an empty 200 as unknown", async () => {
-    mockFetch(200, "");
-    await expect(prebookRate("x")).rejects.toMatchObject({ kind: "unknown" });
-  });
-
-  it("rejects without calling the network when LITE_KEY is missing", async () => {
+  it("does not call the network when LITE_KEY is missing", async () => {
     delete process.env.LITE_KEY;
-    mockFetch(200, { data: {} });
-    await expect(prebookRate("x")).rejects.toBeInstanceOf(LiteApiError);
+    stubFetch(200, { data: [] });
+
+    await expect(listBookingsByClientReference("BK-1")).rejects.toBeInstanceOf(LiteApiError);
     expect(lastUrl).toBe("");
   });
 });
 
-describe("bookRate", () => {
-  const body = {
-    prebookId: "pb-1",
-    holder: { firstName: "Ada", lastName: "Obi", email: "ada@example.com" },
-    guests: [{ occupancyNumber: 1, firstName: "Ada", lastName: "Obi" }],
-    payment: { method: "ACC_CREDIT_CARD" },
-    clientReference: "BK-ABC1234567",
-  };
+describe("isDuplicateClientReference", () => {
+  it("recognises LiteAPI error 4005", () => {
+    const error = new LiteApiError("duplicate booking attempt with existing client reference", "rejected", 400, {
+      error: { code: 4005, message: "duplicate booking attempt with existing client reference" },
+    });
 
-  it("posts the booking with its idempotency reference", async () => {
-    mockFetch(200, { data: { bookingId: "b-1", status: "CONFIRMED" } });
-    const data = await bookRate(body);
-    expect(data).toEqual({ bookingId: "b-1", status: "CONFIRMED" });
-    expect(lastUrl).toBe("https://book.liteapi.travel/v3.0/rates/book");
-    expect(JSON.parse(lastInit.body).clientReference).toBe("BK-ABC1234567");
-    expect(JSON.parse(lastInit.body).payment).toEqual({ method: "ACC_CREDIT_CARD" });
+    expect(isDuplicateClientReference(error)).toBe(true);
   });
 
-  it("reports a refused booking as rejected", async () => {
-    mockFetch(422, { error: { message: "prebook expired" } });
-    await expect(bookRate(body)).rejects.toMatchObject({ kind: "rejected", status: 422 });
+  it("does not match other LiteAPI errors or other error types", () => {
+    expect(isDuplicateClientReference(new LiteApiError("bad", "rejected", 400, { error: { code: 4001 } }))).toBe(false);
+    expect(isDuplicateClientReference(new LiteApiError("bad", "rejected", 400, null))).toBe(false);
+    expect(isDuplicateClientReference(new Error("4005"))).toBe(false);
+    expect(isDuplicateClientReference(undefined)).toBe(false);
   });
 
-  it("reports a timeout status as unknown, not failed", async () => {
-    mockFetch(408, { error: { message: "timeout" } });
-    await expect(bookRate(body)).rejects.toMatchObject({ kind: "unknown", status: 408 });
+  it("is produced end to end by a real 400 carrying code 4005", async () => {
+    stubFetch(400, { error: { code: 4005, message: "duplicate booking attempt with existing client reference" } });
+
+    const error = await listBookingsByClientReference("BK-1").catch((e) => e);
+
+    expect(isDuplicateClientReference(error)).toBe(true);
   });
 });

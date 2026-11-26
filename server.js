@@ -15,6 +15,7 @@ import currencyRoutes from './Routes/currencyRoutes.js'
 import paymentRoutes from  './Routes/paymentRoutes.js'
 import { startRateRefreshSchedule } from './utils/currencyConverter.js'
 import { startPaymentReconciliationSchedule, stopPaymentReconciliationSchedule } from "./Config/paymentReconciliation.js";
+import { startFulfillmentRecoverySchedule, stopFulfillmentRecoverySchedule } from "./Config/fulfillmentRecovery.js";
 import { buildCorsOptions } from "./utils/cors.js";
 import { rateLimit } from "./utils/rateLimit.js";
 
@@ -72,6 +73,7 @@ const start = async () => {
     await connectDB();
     startRateRefreshSchedule();
     startPaymentReconciliationSchedule();
+    startFulfillmentRecoverySchedule();
 
     const server = app.listen(PORT, () => {
         console.log(`Server listening on port ${PORT}`);
@@ -90,6 +92,7 @@ const start = async () => {
         }, 10_000).unref();
 
         stopPaymentReconciliationSchedule();
+        stopFulfillmentRecoverySchedule();
 
         server.close(async (err) => {
             try {

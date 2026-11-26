@@ -1,0 +1,1077 @@
+[
+  {
+    "label": "1. prebook",
+    "request": {
+      "method": "POST",
+      "path": "/rates/prebook",
+      "body": {
+        "offerId": "3gAYonJzkd4AEaRzcmlk2gECRzQyRE9OWldIRTNHS01SUUc0WkRNWlJXTVkzR0k3QlJFTVpEQU1SWEdBWlRDTUQ0R0lZREVOWlFHTVlURTdERk5aUFZLVTM0S1ZKWFlWS1RJUjZERVFKUUlONkRFTVJZR042RktNU1dMQlpIWU1KWEhFMlRNT0JaR1kyVE9PQlJIQldWUzJERkVNWVRFTkpWSEE0Q0dOUldHVVdUQ01SVkdVNERRN0NPS0pERTQ3QlNHQVpESU1CV0dFWlRDTUJRR0I2REU3Q1NHRVlUS01ENEdJM0RNT0JURU5KRTZJMk9LSkRFNElaU0dBWkRJTEpRR1lXVENNWkFHRVlEVU1CUUVNo3ByY8tAca1HrhR64aVvcl9wcssAAAAAAAAAAKVvcl9jbctAMAAAAAAAAKJjbctAMAAAAAAAAKNwY2SgonJ0pE5SRk6jYnJkolJPpG1yaWTAo21ybsCjaGRwwKNmcm6go3NybqlUd2luIFJvb22jb2NuAaRwcmtzwKNkZXTLAAAAAAAAAACiY3CCoXCQonJ0pE5SRk6kc2hpZKYxMjU1ODijc2lkAqNoaWSnbHAxZWE5NKNvY2ORgaFhAqNjdXKjVVNEomduolVTomNpqjIwMjctMDMtMTCiY2-qMjAyNy0wMy0xMqNnaWSgomNyy0AYAAAAAAAApHNzaWTZMHNlc3Npb25fMDFhMjE3NzFiNTgwSWlzSXQwQWZ3WUZpWUJ6V3hkd3h2STlKWXFGTKNpc2jCo3NzcKCjaWZtwqVpZmNocsKjaWZywqVzZWFpZKCibmvAonR4koShacKhZNlAQ2l0eSBUYXggb2YgNS41MyBFVVIgcGVyIGFkdWx0IHBlciBuaWdodCAoTm90IGluY2x1ZGVkIGluIHByaWNlKaFhy0A4R64UeuFIoWOjVVNEhKFpw6Fk2TFWQVQgb2YgMTAlIHBlciByb29tIHBlciBuaWdodCAoSW5jbHVkZWQgaW4gcHJpY2UpoWHLQDhAAAAAAAChY6NVU0SibHDAo2JrdAekbXNwYctAcy2ZmZmZmqRtc3Bjo1VTRA==",
+        "usePaymentSdk": false
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "prebookId": "H_ttr2WPz",
+        "offerId": "3gAYonJzkd4AEaRzcmlk2gECRzQyRE9OWldIRTNHS01SUUc0WkRNWlJXTVkzR0k3QlJFTVpEQU1SWEdBWlRDTUQ0R0lZREVOWlFHTVlURTdERk5aUFZLVTM0S1ZKWFlWS1RJUjZERVFKUUlONkRFTVJZR042RktNU1dMQlpIWU1KWEhFMlRNT0JaR1kyVE9PQlJIQldWUzJERkVNWVRFTkpWSEE0Q0dOUldHVVdUQ01SVkdVNERRN0NPS0pERTQ3QlNHQVpESU1CV0dFWlRDTUJRR0I2REU3Q1NHRVlUS01ENEdJM0RNT0JURU5KRTZJMk9LSkRFNElaU0dBWkRJTEpRR1lXVENNWkFHRVlEVU1CUUVNo3ByY8tAca1HrhR64aVvcl9wcssAAAAAAAAAAKVvcl9jbctAMAAAAAAAAKJjbctAMAAAAAAAAKNwY2SgonJ0pE5SRk6jYnJkolJPpG1yaWTAo21ybsCjaGRwwKNmcm6go3NybqlUd2luIFJvb22jb2NuAaRwcmtzwKNkZXTLAAAAAAAAAACiY3CCoXCQonJ0pE5SRk6kc2hpZKYxMjU1ODijc2lkAqNoaWSnbHAxZWE5NKNvY2ORgaFhAqNjdXKjVVNEomduolVTomNpqjIwMjctMDMtMTCiY2-qMjAyNy0wMy0xMqNnaWSgomNyy0AYAAAAAAAApHNzaWTZMHNlc3Npb25fMDFhMjE3NzFiNTgwSWlzSXQwQWZ3WUZpWUJ6V3hkd3h2STlKWXFGTKNpc2jCo3NzcKCjaWZtwqVpZmNocsKjaWZywqVzZWFpZKCibmvAonR4koShacKhZNlAQ2l0eSBUYXggb2YgNS41MyBFVVIgcGVyIGFkdWx0IHBlciBuaWdodCAoTm90IGluY2x1ZGVkIGluIHByaWNlKaFhy0A4R64UeuFIoWOjVVNEhKFpw6Fk2TFWQVQgb2YgMTAlIHBlciByb29tIHBlciBuaWdodCAoSW5jbHVkZWQgaW4gcHJpY2UpoWHLQDhAAAAAAAChY6NVU0SibHDAo2JrdAekbXNwYctAcy2ZmZmZmqRtc3Bjo1VTRA==",
+        "hotelId": "lp1ea94",
+        "currency": "USD",
+        "termsAndConditions": "",
+        "roomTypes": [
+          {
+            "rates": [
+              {
+                "rateId": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+                "occupancyNumber": 1,
+                "name": "Twin Room",
+                "maxOccupancy": 2,
+                "adultCount": 2,
+                "childCount": 0,
+                "childrenAges": [],
+                "boardType": "RO",
+                "boardName": "Room Only",
+                "remarks": "<br/><br/>FIT conditions are available for bookings of 5 passengers and under, above 5 passengers the property reserves the right to decline the bookings and special cancellation policy applies.<br/>Pets are allowed in our hotels with a supplement of 6 EUR per pet per night.\n<br/>A valid bank card is required at check-in for a pre-authorization to guarantee your room. Visa Electron, Maestro, and prepaid cards are accepted.<br/>",
+                "priceType": "commission",
+                "commission": [
+                  {
+                    "amount": 16,
+                    "currency": "USD"
+                  }
+                ],
+                "retailRate": {
+                  "total": [
+                    {
+                      "amount": 282.83,
+                      "currency": "USD"
+                    }
+                  ],
+                  "suggestedSellingPrice": [
+                    {
+                      "amount": 306.85,
+                      "currency": "USD",
+                      "source": ""
+                    }
+                  ],
+                  "initialPrice": null,
+                  "taxesAndFees": [
+                    {
+                      "included": false,
+                      "description": "City Tax of 5.53 EUR per adult per night (Not included in price)",
+                      "amount": 24.28,
+                      "currency": "USD"
+                    },
+                    {
+                      "included": true,
+                      "description": "VAT of 10% per room per night (Included in price)",
+                      "amount": 24.25,
+                      "currency": "USD"
+                    }
+                  ]
+                },
+                "cancellationPolicies": {
+                  "cancelPolicyInfos": [],
+                  "hotelRemarks": [],
+                  "refundableTag": "NRFN"
+                },
+                "paymentTypes": [
+                  "NUITEE_PAY"
+                ],
+                "providerCommission": {
+                  "amount": 0,
+                  "currency": ""
+                },
+                "perks": [],
+                "promotions": null
+              }
+            ]
+          }
+        ],
+        "suggestedSellingPrice": 306.85,
+        "isPackageRate": false,
+        "commission": 16,
+        "price": 282.83,
+        "priceType": "commission",
+        "priceDifferencePercent": 0,
+        "cancellationChanged": false,
+        "boardChanged": false,
+        "supplier": "nuitee",
+        "supplierId": 2,
+        "paymentTypes": [
+          "NUITEE_PAY",
+          "ACC_CREDIT_CARD",
+          "WALLET"
+        ],
+        "checkin": "2027-03-10",
+        "checkout": "2027-03-12",
+        "sellingPriceToUser": 282.83
+      },
+      "guestLevel": 0,
+      "sandbox": true
+    },
+    "error": null
+  },
+  {
+    "label": "2. book (first time)",
+    "request": {
+      "method": "POST",
+      "path": "/rates/book",
+      "body": {
+        "prebookId": "H_ttr2WPz",
+        "holder": {
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "email": "sandbox.test@example.com"
+        },
+        "guests": [
+          {
+            "occupancyNumber": 1,
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "email": "sandbox.test@example.com"
+          }
+        ],
+        "payment": {
+          "method": "ACC_CREDIT_CARD"
+        },
+        "clientReference": "EXP-1795689768987"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bookingId": "xEB7DKLZ7",
+        "clientReference": "EXP-1795689768987",
+        "supplierBookingId": "xEB7DKLZ7",
+        "supplierBookingName": "nuitee",
+        "supplier": "nuitee",
+        "supplierId": 2,
+        "status": "CONFIRMED",
+        "hotelConfirmationCode": "test",
+        "checkin": "2027-03-10",
+        "checkout": "2027-03-12",
+        "hotel": {
+          "hotelId": "lp1ea94",
+          "name": "B&B HOTEL Paris 17 Batignolles",
+          "phone": "",
+          "email": ""
+        },
+        "bookedRooms": [
+          {
+            "roomType": {
+              "roomTypeId": "",
+              "name": "Test rate 1"
+            },
+            "boardType": "RO",
+            "boardName": "Room Only",
+            "adults": 1,
+            "children": 0,
+            "rate": {
+              "rateId": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+              "retailRate": {
+                "total": {
+                  "amount": 282.83,
+                  "currency": "USD"
+                },
+                "suggestedSellingPrice": {
+                  "source": ""
+                },
+                "taxesAndFees": [
+                  {
+                    "included": false,
+                    "description": "City Tax of 5.53 EUR per adult per night (Not included in price)",
+                    "amount": 24.28,
+                    "currency": "USD"
+                  },
+                  {
+                    "included": true,
+                    "description": "VAT of 10% per room per night (Included in price)",
+                    "amount": 24.25,
+                    "currency": "USD"
+                  }
+                ]
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": [
+                  {
+                    "cancelTime": "2027-03-10 23:59:59",
+                    "amount": 282.83,
+                    "type": "amount",
+                    "timezone": "GMT",
+                    "currency": "USD"
+                  }
+                ],
+                "hotelRemarks": [],
+                "refundableTag": "NRFN"
+              },
+              "maxOccupancy": 1,
+              "boardType": "Room Only",
+              "boardName": "RO",
+              "remarks": "",
+              "perks": []
+            },
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "childrenAges": null,
+            "board": "Room Only",
+            "boardCode": "RO",
+            "cancellationPolicies": {
+              "cancelPolicyInfos": null,
+              "hotelRemarks": [],
+              "refundableTag": "NRFN"
+            },
+            "room_id": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+            "occupancy_number": 1,
+            "amount": 282.83,
+            "currency": "USD",
+            "children_count": 0,
+            "remarks": "",
+            "guests": [
+              {
+                "firstName": "Test",
+                "lastName": "Sandbox",
+                "email": "sandbox.test@example.com",
+                "phone": "",
+                "remarks": "",
+                "occupancyNumber": 1
+              }
+            ]
+          }
+        ],
+        "holder": {
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "email": "sandbox.test@example.com",
+          "phone": ""
+        },
+        "createdAt": "2026-11-26T10:42:50",
+        "updatedAt": "",
+        "cancellationPolicies": {
+          "cancelPolicyInfos": null,
+          "hotelRemarks": [],
+          "refundableTag": "NRFN"
+        },
+        "specialRemarks": "Example special remarks",
+        "optionalFees": "Optional fees",
+        "mandatoryFees": "Mandatory fees",
+        "knowBeforeYouGo": "Know before you go",
+        "price": 282.83,
+        "sellingPriceToUser": 282.83,
+        "commission": 16,
+        "addonsTotalAmount": 0,
+        "currency": "USD",
+        "remarks": "",
+        "voucherCode": "",
+        "voucherTotalAmount": 0,
+        "addons": null,
+        "guestId": 329977,
+        "distributorCommission": 0,
+        "distributorPrice": 0,
+        "trackingId": "",
+        "firstName": "Test",
+        "lastName": "Sandbox",
+        "adults": 2,
+        "children": "",
+        "childrenCount": 0,
+        "prebookId": "H_ttr2WPz",
+        "paymentStatus": "succeeded",
+        "paymentTransactionId": "tr_cts_XnfsOWQcAvwKpW-RU0yAv",
+        "sellingPrice": "282.83",
+        "exchangeRate": 0.9110888455939106,
+        "exchangeRateUsd": 1,
+        "email": "sandbox.test@example.com",
+        "tag": "NRFN",
+        "lastFreeCancellationDate": null,
+        "userId": 372303,
+        "nationality": "US",
+        "holderTitle": "",
+        "hotelId": "lp1ea94",
+        "hotelName": "B&B HOTEL Paris 17 Batignolles",
+        "cancelledAt": null,
+        "refundedAt": null,
+        "loyaltyGuestId": 329977,
+        "sandbox": 1,
+        "clientCommission": 16,
+        "voucherId": null,
+        "voucherTransationId": null,
+        "processingFee": 11.31,
+        "amountRefunded": 0,
+        "refundType": "",
+        "addonsRedemptions": null,
+        "rebookFrom": "",
+        "agentId": null,
+        "cancelledBy": null,
+        "feed": null,
+        "goodwillPayment": null,
+        "newCharges": 0,
+        "compensationAmount": 0,
+        "hotelRemarks": "<br/><br/>FIT conditions are available for bookings of 5 passengers and under, above 5 passengers the property reserves the right to decline the bookings and special cancellation policy applies.<br/>Pets are allowed in our hotels with a supplement of 6 EUR per pet per night.\n<br/>A valid bank card is required at check-in for a pre-authorization to guarantee your room. Visa Electron, Maestro, and prepaid cards are accepted.<br/>",
+        "payLaterDeadline": null
+      },
+      "guestLevel": 0,
+      "sandbox": true
+    },
+    "error": null
+  },
+  {
+    "label": "3a. list bookings by clientReference (exists)",
+    "request": {
+      "method": "GET",
+      "path": "/bookings?clientReference=EXP-1795689768987",
+      "body": null
+    },
+    "status": 200,
+    "response": {
+      "data": [
+        {
+          "bookingId": "xEB7DKLZ7",
+          "clientReference": "EXP-1795689768987",
+          "supplierBookingId": "xEB7DKLZ7",
+          "supplierBookingName": "nuitee",
+          "supplier": "nuitee",
+          "supplierId": 2,
+          "status": "CONFIRMED",
+          "hotelConfirmationCode": "test",
+          "checkin": "2027-03-10",
+          "checkout": "2027-03-12",
+          "hotel": {
+            "hotelId": "lp1ea94",
+            "name": "B&B HOTEL Paris 17 Batignolles",
+            "address": "4 Boulevard Berthier",
+            "city": "Paris",
+            "country": "FR",
+            "zip": "75017",
+            "starRating": 3,
+            "thumbnail": "https://static.cupid.travel/hotels/thumbnail/532214259.jpg",
+            "location": {
+              "latitude": 48.894314,
+              "longitude": 2.312344
+            },
+            "phone": "+33 892 23 34 46",
+            "email": "",
+            "checkinCheckoutTimes": {
+              "checkin_start": "03:00 PM",
+              "checkin_end": "",
+              "checkout": "11:00 AM",
+              "instructions": [],
+              "special_instructions": ""
+            }
+          },
+          "rooms": [
+            {
+              "adults": 1,
+              "children": 0,
+              "rate": {
+                "rateId": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+                "retailRate": {
+                  "total": {
+                    "amount": 282.83,
+                    "currency": "USD"
+                  },
+                  "suggestedSellingPrice": {
+                    "source": ""
+                  },
+                  "taxesAndFees": null
+                },
+                "maxOccupancy": 0,
+                "boardType": "",
+                "boardName": "",
+                "remarks": "",
+                "perks": []
+              },
+              "firstName": "Test",
+              "lastName": "Sandbox",
+              "childrenAges": [],
+              "room_id": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+              "occupancy_number": 1,
+              "amount": 282.83,
+              "currency": "USD",
+              "children_count": 0,
+              "remarks": "",
+              "guests": [
+                {
+                  "firstName": "Test",
+                  "lastName": "Sandbox",
+                  "email": "sandbox.test@example.com",
+                  "phone": "",
+                  "remarks": "",
+                  "occupancyNumber": 1
+                }
+              ]
+            }
+          ],
+          "holder": {
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "email": "sandbox.test@example.com",
+            "phone": ""
+          },
+          "createdAt": "2026-11-26T10:42:54Z",
+          "updatedAt": "2026-11-26T10:42:54Z",
+          "cancellationPolicies": {
+            "cancelPolicyInfos": [],
+            "hotelRemarks": [],
+            "refundableTag": "NRFN"
+          },
+          "specialRemarks": "",
+          "optionalFees": "",
+          "mandatoryFees": "",
+          "knowBeforeYouGo": "",
+          "price": 282.83,
+          "sellingPriceToUser": 282.83,
+          "commission": 16,
+          "addonsTotalAmount": 0,
+          "currency": "USD",
+          "remarks": "",
+          "voucherCode": "",
+          "voucherTotalAmount": 0,
+          "addons": null,
+          "guestId": 329977,
+          "distributorCommission": 0,
+          "distributorPrice": 0,
+          "trackingId": "",
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "adults": 2,
+          "children": "",
+          "childrenCount": 0,
+          "prebookId": "H_ttr2WPz",
+          "paymentStatus": "succeeded",
+          "paymentTransactionId": "tr_cts_XnfsOWQcAvwKpW-RU0yAv",
+          "sellingPrice": "282.83",
+          "exchangeRate": 0.9110888455939106,
+          "exchangeRateUsd": 1,
+          "email": "sandbox.test@example.com",
+          "tag": "NRFN",
+          "lastFreeCancellationDate": null,
+          "userId": 372303,
+          "nationality": "US",
+          "holderTitle": "",
+          "hotelId": "lp1ea94",
+          "hotelName": "B&B HOTEL Paris 17 Batignolles",
+          "cancelledAt": null,
+          "refundedAt": null,
+          "loyaltyGuestId": 329977,
+          "sandbox": 1,
+          "clientCommission": 16,
+          "voucherId": null,
+          "voucherTransationId": null,
+          "processingFee": 11.31,
+          "amountRefunded": 0,
+          "refundType": "",
+          "addonsRedemptions": null,
+          "rebookFrom": "",
+          "agentId": null,
+          "cancelledBy": null,
+          "feed": null,
+          "goodwillPayment": null,
+          "newCharges": 0,
+          "compensationAmount": 0,
+          "hotelRemarks": "<br/><br/>FIT conditions are available for bookings of 5 passengers and under, above 5 passengers the property reserves the right to decline the bookings and special cancellation policy applies.<br/>Pets are allowed in our hotels with a supplement of 6 EUR per pet per night.\n<br/>A valid bank card is required at check-in for a pre-authorization to guarantee your room. Visa Electron, Maestro, and prepaid cards are accepted.<br/>",
+          "payLaterDeadline": null
+        }
+      ]
+    },
+    "error": null
+  },
+  {
+    "label": "3b. list bookings by clientReference (does NOT exist)",
+    "request": {
+      "method": "GET",
+      "path": "/bookings?clientReference=EXP-DOES-NOT-EXIST-1795689768987",
+      "body": null
+    },
+    "status": 200,
+    "response": {
+      "data": []
+    },
+    "error": null
+  },
+  {
+    "label": "4. retrieve booking by id",
+    "request": {
+      "method": "GET",
+      "path": "/bookings/xEB7DKLZ7",
+      "body": null
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bookingId": "xEB7DKLZ7",
+        "clientReference": "EXP-1795689768987",
+        "supplierBookingId": "xEB7DKLZ7",
+        "supplierBookingName": "nuitee",
+        "supplier": "nuitee",
+        "supplierId": 2,
+        "status": "CONFIRMED",
+        "hotelConfirmationCode": "test",
+        "checkin": "2027-03-10",
+        "checkout": "2027-03-12",
+        "hotel": {
+          "hotelId": "lp1ea94",
+          "name": "B&B HOTEL Paris 17 Batignolles",
+          "address": "4 Boulevard Berthier",
+          "city": "Paris",
+          "country": "FR",
+          "zip": "75017",
+          "starRating": 3,
+          "thumbnail": "https://static.cupid.travel/hotels/thumbnail/532214259.jpg",
+          "location": {
+            "latitude": 48.894314,
+            "longitude": 2.312344
+          },
+          "phone": "+33 892 23 34 46",
+          "email": "",
+          "checkinCheckoutTimes": {
+            "checkin_start": "03:00 PM",
+            "checkin_end": "",
+            "checkout": "11:00 AM",
+            "instructions": [],
+            "special_instructions": ""
+          }
+        },
+        "bookedRooms": [
+          {
+            "roomType": {
+              "roomTypeId": "",
+              "name": "Test rate 1"
+            },
+            "boardType": "RO",
+            "boardName": "Room Only",
+            "adults": 1,
+            "children": 0,
+            "rate": {
+              "rateId": "",
+              "retailRate": {
+                "total": {
+                  "amount": 282.83,
+                  "currency": "USD"
+                },
+                "suggestedSellingPrice": {
+                  "source": ""
+                },
+                "taxesAndFees": [
+                  {
+                    "included": false,
+                    "description": "City Tax of 5.53 EUR per adult per night (Not included in price)",
+                    "amount": 24.28,
+                    "currency": "USD"
+                  },
+                  {
+                    "included": true,
+                    "description": "VAT of 10% per room per night (Included in price)",
+                    "amount": 24.25,
+                    "currency": "USD"
+                  }
+                ]
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": null,
+                "hotelRemarks": [],
+                "refundableTag": "NRFN"
+              },
+              "maxOccupancy": 1,
+              "boardType": "RO",
+              "boardName": "Room Only",
+              "remarks": "",
+              "perks": []
+            },
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "childrenAges": [],
+            "board": "Room Only",
+            "boardCode": "RO",
+            "cancellationPolicies": {
+              "cancelPolicyInfos": null,
+              "hotelRemarks": [],
+              "refundableTag": "NRFN"
+            },
+            "room_id": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+            "occupancy_number": 1,
+            "amount": 282.83,
+            "currency": "USD",
+            "children_count": 0,
+            "remarks": "",
+            "guests": [
+              {
+                "firstName": "Test",
+                "lastName": "Sandbox",
+                "email": "sandbox.test@example.com",
+                "phone": "",
+                "remarks": "",
+                "occupancyNumber": 1
+              }
+            ]
+          }
+        ],
+        "holder": {
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "email": "sandbox.test@example.com",
+          "phone": ""
+        },
+        "createdAt": "2026-11-26T10:42:54",
+        "updatedAt": "",
+        "cancellationPolicies": {
+          "cancelPolicyInfos": null,
+          "hotelRemarks": [],
+          "refundableTag": "NRFN"
+        },
+        "specialRemarks": "",
+        "optionalFees": "",
+        "mandatoryFees": "",
+        "knowBeforeYouGo": "",
+        "price": 282.83,
+        "sellingPriceToUser": 282.83,
+        "commission": 16,
+        "addonsTotalAmount": 0,
+        "currency": "USD",
+        "remarks": "",
+        "voucherCode": "",
+        "voucherTotalAmount": 0,
+        "addons": null,
+        "guestId": 329977,
+        "distributorCommission": 0,
+        "distributorPrice": 0,
+        "trackingId": "",
+        "firstName": "Test",
+        "lastName": "Sandbox",
+        "adults": 2,
+        "children": "",
+        "childrenCount": 0,
+        "prebookId": "H_ttr2WPz",
+        "paymentStatus": "succeeded",
+        "paymentTransactionId": "tr_cts_XnfsOWQcAvwKpW-RU0yAv",
+        "sellingPrice": "282.83",
+        "exchangeRate": 0.9110888455939106,
+        "exchangeRateUsd": 1,
+        "email": "sandbox.test@example.com",
+        "tag": "NRFN",
+        "lastFreeCancellationDate": null,
+        "userId": 372303,
+        "nationality": "US",
+        "holderTitle": "",
+        "hotelId": "lp1ea94",
+        "hotelName": "B&B HOTEL Paris 17 Batignolles",
+        "cancelledAt": null,
+        "refundedAt": null,
+        "loyaltyGuestId": 329977,
+        "sandbox": 1,
+        "clientCommission": 16,
+        "voucherId": null,
+        "voucherTransationId": null,
+        "processingFee": 11.31,
+        "amountRefunded": 0,
+        "refundType": "",
+        "addonsRedemptions": null,
+        "rebookFrom": "",
+        "agentId": null,
+        "cancelledBy": null,
+        "feed": null,
+        "goodwillPayment": null,
+        "newCharges": 0,
+        "compensationAmount": 0,
+        "hotelRemarks": "<br/><br/>FIT conditions are available for bookings of 5 passengers and under, above 5 passengers the property reserves the right to decline the bookings and special cancellation policy applies.<br/>Pets are allowed in our hotels with a supplement of 6 EUR per pet per night.\n<br/>A valid bank card is required at check-in for a pre-authorization to guarantee your room. Visa Electron, Maestro, and prepaid cards are accepted.<br/>",
+        "payLaterDeadline": null
+      }
+    },
+    "error": null
+  },
+  {
+    "label": "5a. book again, same prebookId + same clientReference",
+    "request": {
+      "method": "POST",
+      "path": "/rates/book",
+      "body": {
+        "prebookId": "H_ttr2WPz",
+        "holder": {
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "email": "sandbox.test@example.com"
+        },
+        "guests": [
+          {
+            "occupancyNumber": 1,
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "email": "sandbox.test@example.com"
+          }
+        ],
+        "payment": {
+          "method": "ACC_CREDIT_CARD"
+        },
+        "clientReference": "EXP-1795689768987"
+      }
+    },
+    "status": 400,
+    "response": {
+      "error": {
+        "code": 4005,
+        "message": "duplicate booking attempt with existing client reference"
+      }
+    },
+    "error": null
+  },
+  {
+    "label": "5b. book again, same prebookId + DIFFERENT clientReference",
+    "request": {
+      "method": "POST",
+      "path": "/rates/book",
+      "body": {
+        "prebookId": "H_ttr2WPz",
+        "holder": {
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "email": "sandbox.test@example.com"
+        },
+        "guests": [
+          {
+            "occupancyNumber": 1,
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "email": "sandbox.test@example.com"
+          }
+        ],
+        "payment": {
+          "method": "ACC_CREDIT_CARD"
+        },
+        "clientReference": "EXP-1795689768987-B"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bookingId": "PFf0wAM91",
+        "clientReference": "EXP-1795689768987-B",
+        "supplierBookingId": "PFf0wAM91",
+        "supplierBookingName": "nuitee",
+        "supplier": "nuitee",
+        "supplierId": 2,
+        "status": "CONFIRMED",
+        "hotelConfirmationCode": "test",
+        "checkin": "2027-03-10",
+        "checkout": "2027-03-12",
+        "hotel": {
+          "hotelId": "lp1ea94",
+          "name": "B&B HOTEL Paris 17 Batignolles",
+          "phone": "",
+          "email": ""
+        },
+        "bookedRooms": [
+          {
+            "roomType": {
+              "roomTypeId": "",
+              "name": "Test rate 1"
+            },
+            "boardType": "RO",
+            "boardName": "Room Only",
+            "adults": 1,
+            "children": 0,
+            "rate": {
+              "rateId": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+              "retailRate": {
+                "total": {
+                  "amount": 282.83,
+                  "currency": "USD"
+                },
+                "suggestedSellingPrice": {
+                  "source": ""
+                },
+                "taxesAndFees": [
+                  {
+                    "included": false,
+                    "description": "City Tax of 5.53 EUR per adult per night (Not included in price)",
+                    "amount": 24.28,
+                    "currency": "USD"
+                  },
+                  {
+                    "included": true,
+                    "description": "VAT of 10% per room per night (Included in price)",
+                    "amount": 24.25,
+                    "currency": "USD"
+                  }
+                ]
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": [
+                  {
+                    "cancelTime": "2027-03-10 23:59:59",
+                    "amount": 282.83,
+                    "type": "amount",
+                    "timezone": "GMT",
+                    "currency": "USD"
+                  }
+                ],
+                "hotelRemarks": [],
+                "refundableTag": "NRFN"
+              },
+              "maxOccupancy": 1,
+              "boardType": "Room Only",
+              "boardName": "RO",
+              "remarks": "",
+              "perks": []
+            },
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "childrenAges": null,
+            "board": "Room Only",
+            "boardCode": "RO",
+            "cancellationPolicies": {
+              "cancelPolicyInfos": null,
+              "hotelRemarks": [],
+              "refundableTag": "NRFN"
+            },
+            "room_id": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+            "occupancy_number": 1,
+            "amount": 282.83,
+            "currency": "USD",
+            "children_count": 0,
+            "remarks": "",
+            "guests": [
+              {
+                "firstName": "Test",
+                "lastName": "Sandbox",
+                "email": "sandbox.test@example.com",
+                "phone": "",
+                "remarks": "",
+                "occupancyNumber": 1
+              }
+            ]
+          }
+        ],
+        "holder": {
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "email": "sandbox.test@example.com",
+          "phone": ""
+        },
+        "createdAt": "2026-11-26T10:42:56",
+        "updatedAt": "",
+        "cancellationPolicies": {
+          "cancelPolicyInfos": null,
+          "hotelRemarks": [],
+          "refundableTag": "NRFN"
+        },
+        "specialRemarks": "Example special remarks",
+        "optionalFees": "Optional fees",
+        "mandatoryFees": "Mandatory fees",
+        "knowBeforeYouGo": "Know before you go",
+        "price": 282.83,
+        "sellingPriceToUser": 282.83,
+        "commission": 16,
+        "addonsTotalAmount": 0,
+        "currency": "USD",
+        "remarks": "",
+        "voucherCode": "",
+        "voucherTotalAmount": 0,
+        "addons": null,
+        "guestId": 329977,
+        "distributorCommission": 0,
+        "distributorPrice": 0,
+        "trackingId": "",
+        "firstName": "Test",
+        "lastName": "Sandbox",
+        "adults": 2,
+        "children": "",
+        "childrenCount": 0,
+        "prebookId": "H_ttr2WPz",
+        "paymentStatus": "succeeded",
+        "paymentTransactionId": "tr_cts_Oayo8QxUh382nwz7dCR_p",
+        "sellingPrice": "282.83",
+        "exchangeRate": 0.9110888455939106,
+        "exchangeRateUsd": 1,
+        "email": "sandbox.test@example.com",
+        "tag": "NRFN",
+        "lastFreeCancellationDate": null,
+        "userId": 372303,
+        "nationality": "US",
+        "holderTitle": "",
+        "hotelId": "lp1ea94",
+        "hotelName": "B&B HOTEL Paris 17 Batignolles",
+        "cancelledAt": null,
+        "refundedAt": null,
+        "loyaltyGuestId": 329977,
+        "sandbox": 1,
+        "clientCommission": 16,
+        "voucherId": null,
+        "voucherTransationId": null,
+        "processingFee": 11.31,
+        "amountRefunded": 0,
+        "refundType": "",
+        "addonsRedemptions": null,
+        "rebookFrom": "",
+        "agentId": null,
+        "cancelledBy": null,
+        "feed": null,
+        "goodwillPayment": null,
+        "newCharges": 0,
+        "compensationAmount": 0,
+        "hotelRemarks": "<br/><br/>FIT conditions are available for bookings of 5 passengers and under, above 5 passengers the property reserves the right to decline the bookings and special cancellation policy applies.<br/>Pets are allowed in our hotels with a supplement of 6 EUR per pet per night.\n<br/>A valid bank card is required at check-in for a pre-authorization to guarantee your room. Visa Electron, Maestro, and prepaid cards are accepted.<br/>",
+        "payLaterDeadline": null
+      },
+      "guestLevel": 0,
+      "sandbox": true
+    },
+    "error": null
+  },
+  {
+    "label": "6. list bookings by clientReference (after re-sends)",
+    "request": {
+      "method": "GET",
+      "path": "/bookings?clientReference=EXP-1795689768987",
+      "body": null
+    },
+    "status": 200,
+    "response": {
+      "data": [
+        {
+          "bookingId": "xEB7DKLZ7",
+          "clientReference": "EXP-1795689768987",
+          "supplierBookingId": "xEB7DKLZ7",
+          "supplierBookingName": "nuitee",
+          "supplier": "nuitee",
+          "supplierId": 2,
+          "status": "CONFIRMED",
+          "hotelConfirmationCode": "test",
+          "checkin": "2027-03-10",
+          "checkout": "2027-03-12",
+          "hotel": {
+            "hotelId": "lp1ea94",
+            "name": "B&B HOTEL Paris 17 Batignolles",
+            "address": "4 Boulevard Berthier",
+            "city": "Paris",
+            "country": "FR",
+            "zip": "75017",
+            "starRating": 3,
+            "thumbnail": "https://static.cupid.travel/hotels/thumbnail/532214259.jpg",
+            "location": {
+              "latitude": 48.894314,
+              "longitude": 2.312344
+            },
+            "phone": "+33 892 23 34 46",
+            "email": "",
+            "checkinCheckoutTimes": {
+              "checkin_start": "03:00 PM",
+              "checkin_end": "",
+              "checkout": "11:00 AM",
+              "instructions": [],
+              "special_instructions": ""
+            }
+          },
+          "rooms": [
+            {
+              "adults": 1,
+              "children": 0,
+              "rate": {
+                "rateId": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+                "retailRate": {
+                  "total": {
+                    "amount": 282.83,
+                    "currency": "USD"
+                  },
+                  "suggestedSellingPrice": {
+                    "source": ""
+                  },
+                  "taxesAndFees": null
+                },
+                "maxOccupancy": 0,
+                "boardType": "",
+                "boardName": "",
+                "remarks": "",
+                "perks": []
+              },
+              "firstName": "Test",
+              "lastName": "Sandbox",
+              "childrenAges": [],
+              "room_id": "I42DERCPJZNFOSCFGNDUWTKSKFDTIWSEJVNFEV2NLEZUOSJXIJJEKTK2IRAU2USYI5AVUVCDJVCDIR2JLFCEKTS2KFDU2WKUIU3UIRSOLJIFMS2VGM2EWVSKLBMVMS2UJFJDMRCFKFFFCSKOGZCEKTKSLFDU4NSGJNGVGV2MIJNEQWKNJJMEQRJSKRGU6QS2I5MTEVCPJ5BFESCCK5LFGMSEIZCU2WKUIVHEUVSIIE2EGR2OKJLUOVKXKRBU2USWI5KTIRCRG5BU6S2KIRCTIN2CKNDUCWSEJFGUEV2HIVNFIQ2NIJIUOQRWIRCTOQ2TI5CVSVCLJVCDIR2JGNCE2T2CKRCU4SSFGZETET2LJJCEKNCJLJJUOQK2IREUYSSRI5MVOVCDJVNECR2FLFCFKTKCKFCU27BSHAZC4OBTPR6FET34PR6HYVDXNFXCAUTPN5WXYMBOGAYHYMJWFYYDA7D4GE3C4MBQPQYC4MBQ",
+              "occupancy_number": 1,
+              "amount": 282.83,
+              "currency": "USD",
+              "children_count": 0,
+              "remarks": "",
+              "guests": [
+                {
+                  "firstName": "Test",
+                  "lastName": "Sandbox",
+                  "email": "sandbox.test@example.com",
+                  "phone": "",
+                  "remarks": "",
+                  "occupancyNumber": 1
+                }
+              ]
+            }
+          ],
+          "holder": {
+            "firstName": "Test",
+            "lastName": "Sandbox",
+            "email": "sandbox.test@example.com",
+            "phone": ""
+          },
+          "createdAt": "2026-11-26T10:42:54Z",
+          "updatedAt": "2026-11-26T10:42:54Z",
+          "cancellationPolicies": {
+            "cancelPolicyInfos": [],
+            "hotelRemarks": [],
+            "refundableTag": "NRFN"
+          },
+          "specialRemarks": "",
+          "optionalFees": "",
+          "mandatoryFees": "",
+          "knowBeforeYouGo": "",
+          "price": 282.83,
+          "sellingPriceToUser": 282.83,
+          "commission": 16,
+          "addonsTotalAmount": 0,
+          "currency": "USD",
+          "remarks": "",
+          "voucherCode": "",
+          "voucherTotalAmount": 0,
+          "addons": null,
+          "guestId": 329977,
+          "distributorCommission": 0,
+          "distributorPrice": 0,
+          "trackingId": "",
+          "firstName": "Test",
+          "lastName": "Sandbox",
+          "adults": 2,
+          "children": "",
+          "childrenCount": 0,
+          "prebookId": "H_ttr2WPz",
+          "paymentStatus": "succeeded",
+          "paymentTransactionId": "tr_cts_XnfsOWQcAvwKpW-RU0yAv",
+          "sellingPrice": "282.83",
+          "exchangeRate": 0.9110888455939106,
+          "exchangeRateUsd": 1,
+          "email": "sandbox.test@example.com",
+          "tag": "NRFN",
+          "lastFreeCancellationDate": null,
+          "userId": 372303,
+          "nationality": "US",
+          "holderTitle": "",
+          "hotelId": "lp1ea94",
+          "hotelName": "B&B HOTEL Paris 17 Batignolles",
+          "cancelledAt": null,
+          "refundedAt": null,
+          "loyaltyGuestId": 329977,
+          "sandbox": 1,
+          "clientCommission": 16,
+          "voucherId": null,
+          "voucherTransationId": null,
+          "processingFee": 11.31,
+          "amountRefunded": 0,
+          "refundType": "",
+          "addonsRedemptions": null,
+          "rebookFrom": "",
+          "agentId": null,
+          "cancelledBy": null,
+          "feed": null,
+          "goodwillPayment": null,
+          "newCharges": 0,
+          "compensationAmount": 0,
+          "hotelRemarks": "<br/><br/>FIT conditions are available for bookings of 5 passengers and under, above 5 passengers the property reserves the right to decline the bookings and special cancellation policy applies.<br/>Pets are allowed in our hotels with a supplement of 6 EUR per pet per night.\n<br/>A valid bank card is required at check-in for a pre-authorization to guarantee your room. Visa Electron, Maestro, and prepaid cards are accepted.<br/>",
+          "payLaterDeadline": null
+        }
+      ]
+    },
+    "error": null
+  }
+]
