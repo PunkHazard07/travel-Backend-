@@ -61,10 +61,13 @@ beforeEach(() => {
     jest.spyOn(console, "error").mockImplementation(() => undefined);
     recordOutcome.mockResolvedValue({ found: true, applied: true, attempt: null });
     bookingFindById.mockResolvedValue(null);
-    bookingFindOneAndUpdate.mockImplementation(async (_filter: any, update: any) => ({
-        ...makeBooking(),
-        ...update.$set,
-    }));
+    // Stateful: each update is applied on top of the previous stored document, like the real DB,
+    // so the claim (paid) followed by the supplier outcome (confirmed) ends up as one document.
+    let stored: any = null;
+    bookingFindOneAndUpdate.mockImplementation(async (_filter: any, update: any) => {
+        stored = { ...(stored ?? makeBooking()), ...update.$set };
+        return stored;
+    });
     confirmWithProvider.mockResolvedValue({ outcome: "confirmed", providerBookingId: "ord_1" });
 });
 
