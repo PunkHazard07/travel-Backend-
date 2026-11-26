@@ -1,11 +1,6 @@
 import type { BookingDocument } from "../Model/booking.js";
+import { listBookingsByClientReference, LiteApiError } from "../Config/liteBooking.js";
 
-// "Does a reservation for this booking already exist at the supplier?"
-
-//  found        : a reservation exists (confirmed, still pending, or cancelled at the supplier)
-//  not_found    : the supplier definitively has nothing for this booking: re-sending is safe
-//  unsupported  : no lookup is implemented for this supplier yet: NEVER re-send, a person decides
-//  error        : the lookup itself failed: NEVER re-send, try again later
 export type ProviderLookupResult = 
     | {
           result: "found";
@@ -31,13 +26,57 @@ const findFlightOrder = async (_booking: BookingDocument): Promise<ProviderLooku
     reason: "duffel_lookup_not_implemented",
 });
 
-// TODO(liteapi): confirm in LiteAPI's docs how to list/retrieve a booking by clientReference
-// (booking.bookingReference is sent as the clientReference) and whether a prebookId can be
-// re-sent after a timeout. Return "not_found" ONLY when LiteAPI says no booking has that reference
-const findHotelBooking = async (_booking: BookingDocument): Promise<ProviderLookupResult> => ({
-    result: "unsupported",
-    reason: "liteapi_lookup_not_implemented",
-});
+
+export const findHotelBooking = async (booking: BookingDocument): Promise<ProviderLookupResult> => {
+    let data: any;
+    try {
+        data = await listBookingsByClientReference(booking.bookingReference);
+    } catch (error: any) {
+        const reason = error instanceof LiteApiError ? error.message : `lookup_failed: ${error?.message ?? error}`;
+        return { result: "error", reason: reason.slice(0, 200) };
+    }
+
+    if (!Array.isArray(data)) {
+        return { result: "error", reason: "unexpected_lookup_response" };
+    }
+    if (data.length === 0) {
+        return { result: "not_found"};
+    }
+
+    const matches = data.filter((entry: any) => entry?.clientReference === booking.bookingReference);
+    if (matches.length === 0) {
+        return { result: "error", reason: "lookup_returned_unrelated_bookings" };
+    }
+    if (matches.length > 1) {
+        console.error(`LiteAPI returned ${matches.length} bookings for reference ${booking.bookingReference}`);
+    }
+    
+    const statusOf = (entry: any): "confirmed" | "pending" | "cancelled" => {
+        const status = String(entry?.status ?? "").toUpperCase();
+        if (status === "CONFIRMED") return "confirmed";
+        if (status.startsWith("CANCEL")) return "cancelled";
+        return "pending";
+    };
+
+    // If there is ever more than one, a confirmed one wins.
+    const entry = matches.find((m: any) => statusOf(m) === "confirmed") ?? matches[0];
+    const providerBookingId = entry?.bookingId != null ? String(entry.bookingId) : "";
+    if (!providerBookingId) {
+        return { result: "error", reason: "lookup_booking_without_id" };
+    }
+    
+    return {
+        result: "found",
+        providerStatus: statusOf(entry),
+        providerBookingId,
+        providerData: {
+            status: entry.status ?? null,
+            hotelConfirmationCode: entry.hotelConfirmationCode ?? null,
+            supplierBookingId: entry.supplierBookingId ?? null,
+            recoveredVia: "lookup",
+        },
+    };
+};
 
 let activeLookup: ProviderLookup = {
     async find(booking) {
